@@ -100,32 +100,35 @@ async def approve_task(item_number: str, db: Session = Depends(get_db)):
     run_id = task["run_id"]
     
     # 2. Call Supervity's outbound API to unpause and resume the active Operator!
-    supervity_url = f"https://auto.supervity.ai/api/v1/runs/{run_id}/resume"
     headers = {
         "Authorization": f"Bearer {SUPERVITY_API_KEY}",
         "Content-Type": "application/json"
     }
-    body = {
-        "decision": "Approve",
-        "comments": "Approved via custom Command Center Dashboard"
+    
+    payload = {
+        "status": "approved",
+        "notes": "Approved via custom local Command Center"
     }
+    
+    resume_url = f"https://auto.supervity.ai/api/v1/runs/{run_id}/resume"
     
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(supervity_url, json=body, headers=headers)
-            if response.status_code != 200:
-                print(f"⚠️ Supervity API returned status {response.status_code}: {response.text}")
+            response = await client.post(resume_url, json=payload, headers=headers, timeout=10.0)
+            
+            if response.status_code == 200:
+                print(f"✅ UNPAUSED SUCCESSFULLY: Resumed Supervity run {run_id}")
+            else:
+                print(f"⚠️ Supervity Cloud returned status {response.status_code}: {response.text}")
     except Exception as e:
-        print(f"❌ Outbound call to Supervity failed: {str(e)}")
-    
-    # 3. Update the status in your local database to 'APPROVED'
-    update_query = text("""
-        UPDATE pending_tasks 
-        SET status = 'APPROVED' 
-        WHERE item_number = :item AND status = 'PENDING'
-    """)
-    
+        print(f"⚠️ Error pinging Supervity Cloud: {str(e)}")
+
+    # 3. Resolve status to 'APPROVED' locally so it clears beautifully from Next.js queue
+    update_query = text("UPDATE pending_tasks SET status = 'APPROVED' WHERE item_number = :item")
     db.execute(update_query, {"item": item_number})
     db.commit()
     
-    return {"status": "success", "message": f"Task {item_number} approved and Supervity run resumed."}
+    return {
+        "status": "success",
+        "message": f"Run {run_id} successfully authorized to proceed."
+    }
