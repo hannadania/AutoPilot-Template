@@ -28,6 +28,9 @@ import io
 import logging
 import os
 
+from app.routers import policies
+
+
 from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
@@ -42,6 +45,8 @@ from .routers import (
     examples_router,
     health_router,
     items_router,
+    policies, # The one we added earlier
+    workbench # <--- ADD THIS HERE
 )
 from .security import get_current_user, verify_access
 
@@ -223,6 +228,9 @@ async def delete_file(
 # =============================================================================
 
 app.include_router(api_router)
+
+app.include_router(policies.router)
+app.include_router(workbench.router)
 
 
 # =============================================================================

@@ -1,6 +1,7 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Card,
   CardContent,
@@ -25,89 +26,47 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 }
 
-// Sample workbench tools
-const tools = [
-  {
-    id: 'ai-assistant',
-    title: 'AI Assistant',
-    description: 'Chat with your AI assistant for help with tasks',
-    icon: Icons.sparkles,
-    color: 'bg-gradient-to-br from-brand-navy to-brand-purple',
-    status: 'available',
-  },
-  {
-    id: 'automation',
-    title: 'Automation Builder',
-    description: 'Create and manage automated workflows',
-    icon: Icons.zap,
-    color: 'bg-gradient-to-br from-brand-cornflower to-brand-purple',
-    status: 'available',
-  },
-  {
-    id: 'analytics',
-    title: 'Analytics Dashboard',
-    description: 'View detailed analytics and reports',
-    icon: Icons.activity,
-    color: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
-    status: 'coming-soon',
-  },
-  {
-    id: 'integrations',
-    title: 'Integrations',
-    description: 'Connect with third-party services',
-    icon: Icons.share,
-    color: 'bg-gradient-to-br from-amber-500 to-orange-500',
-    status: 'coming-soon',
-  },
-]
-
-function ToolCard({ tool }: { tool: (typeof tools)[0] }) {
-  const Icon = tool.icon
-  const isComingSoon = tool.status === 'coming-soon'
-
-  return (
-    <motion.div variants={itemVariants}>
-      <Card
-        className={cn(
-          'h-full cursor-pointer transition-all duration-300',
-          isComingSoon && 'opacity-60'
-        )}
-      >
-        <CardHeader>
-          <div className='flex items-start justify-between'>
-            <div
-              className={cn(
-                'flex h-12 w-12 items-center justify-center rounded-xl text-white',
-                tool.color
-              )}
-            >
-              <Icon className='h-6 w-6' strokeWidth={1.5} />
-            </div>
-            {isComingSoon && (
-              <span className='rounded-full bg-muted px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-brand-muted'>
-                Coming Soon
-              </span>
-            )}
-          </div>
-          <CardTitle className='mt-4'>{tool.title}</CardTitle>
-          <CardDescription>{tool.description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant={isComingSoon ? 'outline' : 'default'}
-            className='w-full'
-            disabled={isComingSoon}
-          >
-            {isComingSoon ? 'Notify Me' : 'Open Tool'}
-            {!isComingSoon && <Icons.arrowRight className='ml-2 h-4 w-4' />}
-          </Button>
-        </CardContent>
-      </Card>
-    </motion.div>
-  )
+interface Task {
+  id?: number
+  item_number: string
+  operator_name: string
+  proposed_action: string
+  cost_impact: string
+  jira_ticket_url: string
+  status: string
 }
 
 export default function WorkbenchPage() {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadTasks = () => {
+    setLoading(true)
+    fetch('http://localhost:8001/api/webhooks/supervity/workbench')
+      .then((res) => res.json())
+      .then((data) => {
+        setTasks(data.tasks || [])
+      })
+      .catch((err) => console.error('Error fetching tasks:', err))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadTasks()
+  }, [])
+
+  const handleApprove = (item_number: string) => {
+    // Optimistically remove the task from the UI
+    setTasks((prev) => prev.filter((t) => t.item_number !== item_number))
+    
+    // Put request to database
+    fetch(`http://localhost:8001/api/webhooks/supervity/workbench/${item_number}/approve`, {
+      method: 'PUT'
+    }).catch(err => console.error("Failed to approve:", err))
+    
+    console.log(`Approved task for item: ${item_number}`)
+  }
+
   return (
     <motion.div
       className='space-y-8'
@@ -116,55 +75,97 @@ export default function WorkbenchPage() {
       animate='visible'
     >
       {/* Header */}
-      <motion.div variants={itemVariants}>
-        <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>
-          Workbench
-        </h1>
-        <p className='mt-2 text-lg text-muted-foreground'>
-          Access your AI tools and automation workflows.
-        </p>
+      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className='text-display-3 font-bold tracking-tight text-brand-navy'>
+            Human-in-the-Loop Workbench
+          </h1>
+          <p className='mt-2 text-lg text-muted-foreground'>
+            Review and approve high-stakes exceptions caught by the AI Orchestrator.
+          </p>
+        </div>
+        <Button variant="outline" onClick={loadTasks}>
+          <Icons.activity className={cn("mr-2 h-4 w-4", loading ? "animate-spin" : "")} />
+          Refresh Queue
+        </Button>
       </motion.div>
 
-      {/* Tools Grid */}
-      <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-4'>
-        {tools.map((tool) => (
-          <ToolCard key={tool.id} tool={tool} />
-        ))}
-      </div>
-
-      {/* Quick Actions */}
+      {/* Exception Queue */}
       <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle className='flex items-center gap-2'>
-              <Icons.zap className='h-5 w-5 text-brand-cornflower' />
-              Quick Actions
-            </CardTitle>
-            <CardDescription>
-              Frequently used actions for faster access
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className='flex flex-wrap gap-3'>
-              <Button variant='outline' size='sm'>
-                <Icons.plus className='mr-2 h-4 w-4' />
-                New Task
-              </Button>
-              <Button variant='outline' size='sm'>
-                <Icons.fileText className='mr-2 h-4 w-4' />
-                Generate Report
-              </Button>
-              <Button variant='outline' size='sm'>
-                <Icons.mail className='mr-2 h-4 w-4' />
-                Send Notification
-              </Button>
-              <Button variant='outline' size='sm'>
-                <Icons.download className='mr-2 h-4 w-4' />
-                Export Data
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {loading ? (
+           <div className="flex justify-center p-12">
+             <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-cornflower border-t-transparent" />
+           </div>
+        ) : tasks.length === 0 ? (
+          <Card className="border-dashed bg-slate-50/50">
+            <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+              <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                <Icons.zap className="h-6 w-6 text-emerald-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-brand-navy">All Clear!</h3>
+              <p className="text-muted-foreground max-w-sm mt-2">
+                There are no pending exceptions. The AI is handling all automated workflows smoothly.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            <AnimatePresence>
+              {tasks.map((task) => (
+                <motion.div
+                  key={task.item_number}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0, x: -20 }}
+                >
+                  <Card className="border-l-4 border-l-red-500 hover:shadow-md transition-all">
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-red-600 flex items-center gap-2">
+                            <Icons.zap className="h-5 w-5" />
+                            Exception Alert: {task.item_number}
+                          </CardTitle>
+                          <CardDescription className="mt-1">
+                            Flagged by <strong>{task.operator_name}</strong>
+                          </CardDescription>
+                        </div>
+                        <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
+                          REQUIRES REVIEW
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                        <div className="space-y-2">
+                          <p className="text-sm text-brand-navy">
+                            <span className="font-semibold text-muted-foreground w-28 inline-block">Proposed Action:</span> 
+                            {task.proposed_action}
+                          </p>
+                          <p className="text-sm text-brand-navy">
+                            <span className="font-semibold text-muted-foreground w-28 inline-block">Cost Impact:</span> 
+                            <span className="font-bold text-amber-600">{task.cost_impact}</span>
+                          </p>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Button variant="outline" className="text-brand-navy" onClick={() => window.open(task.jira_ticket_url, '_blank')}>
+                            <Icons.share className="mr-2 h-4 w-4" />
+                            View Ticket
+                          </Button>
+                          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleApprove(task.item_number)}>
+                            <Icons.arrowRight className="mr-2 h-4 w-4" />
+                            Approve Action
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   )

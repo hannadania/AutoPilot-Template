@@ -182,14 +182,28 @@ export default function AIPoliciesPage() {
   // Data — Loaded from demo data (replace with API fetch)
   // ============================================================================
 
-  const loadPolicies = useCallback(() => {
+const loadPolicies = useCallback(async () => {
     setIsLoading(true)
-    // Simulate loading — replace with real API call
-    setTimeout(() => {
-      setPolicies(DEMO_POLICIES)
+    try {
+      // Cleaned up fetch URL (no trailing slash):
+      const res = await fetch('http://localhost:8001/api/policies')
+      if (res.ok) {
+        const data = await res.json()
+        setPolicies(data.policies && data.policies.length > 0 ? data.policies : [])
+      } else {
+        console.error("Backend error status:", res.status)
+        setPolicies([]) 
+      }
+    } catch (error) {
+      console.error('Failed to fetch policies from FastAPI:', error)
+      setPolicies([]) 
+    } finally {
       setIsLoading(false)
-    }, 300)
+    }
   }, [])
+
+
+
 
   useEffect(() => {
     loadPolicies()
@@ -213,10 +227,34 @@ export default function AIPoliciesPage() {
     loadPolicies()
   }, [loadPolicies])
 
-  const togglePolicyStatus = useCallback(async (id: string, _isActive: boolean) => {
-    // Toggle locally (replace with API call)
+
+
+
+
+  const togglePolicyStatus = useCallback(async (id: string, isActive: boolean) => {
+    // 1. Instantly update the switch in the UI
     setPolicies(prev => prev.map(p => p.id === id ? { ...p, is_active: !p.is_active } : p))
+
+    // 2. Send the update to your FastAPI backend
+    try {
+      await fetch(`http://localhost:8001/api/policies/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_active: !isActive,
+          value: {}
+        }),
+      })
+    } catch (error) {
+      console.error('Failed to update policy in backend:', error)
+    }
   }, [])
+
+
+
+
+
+
 
   const deletePolicy = useCallback(async (id: string) => {
     // Delete locally (replace with API call)
