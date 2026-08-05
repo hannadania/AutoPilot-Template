@@ -40,16 +40,23 @@ export default function WorkbenchPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
 
-  const loadTasks = () => {
-    setLoading(true)
-    fetch('http://localhost:8001/api/webhooks/supervity/workbench')
-      .then((res) => res.json())
-      .then((data) => {
-        setTasks(data.tasks || [])
-      })
-      .catch((err) => console.error('Error fetching tasks:', err))
-      .finally(() => setLoading(false))
-  }
+
+  
+const loadTasks = () => {
+  setLoading(true)
+  // Update this URL to your actual backend endpoint that queries the database:
+  fetch('http://localhost:8001/api/workbench/tasks')
+    .then((res) => res.json())
+    .then((data) => {
+      setTasks(data.tasks || [])
+    })
+    .catch((err) => console.error('Error fetching tasks:', err))
+    .finally(() => setLoading(false))
+}
+
+
+
+
 
   useEffect(() => {
     loadTasks()

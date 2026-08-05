@@ -73,7 +73,7 @@ async def catch_ai_approval(
     }
 
 
-@router.get("/api/webhooks/supervity/workbench")
+@router.get("/api/workbench/tasks")
 async def get_pending_approvals(db: Session = Depends(get_db)):
     """
     Called by your Next.js UI to display the active queue of exceptions.
@@ -84,51 +84,47 @@ async def get_pending_approvals(db: Session = Depends(get_db)):
     return {"tasks": [dict(row) for row in result]}
 
 
+
+
 @router.put("/api/webhooks/supervity/workbench/{item_number}/approve")
 async def approve_task(item_number: str, db: Session = Depends(get_db)):
-    """
-    Triggers when you click 'Approve Action' on your Next.js frontend dashboard.
-    This calls Supervity's API to unpause the operator, then updates your local DB.
-    """
-    # 1. Pull the run_id for this item from your local database
+    # 1. Pull the specific task and its run_id
     get_query = text("SELECT run_id FROM pending_tasks WHERE item_number = :item AND status = 'PENDING' LIMIT 1")
-    task = db.execute(get_query).mappings().first()
+    task = db.execute(get_query, {"item": item_number}).mappings().first()
     
     if not task:
         raise HTTPException(status_code=404, detail="No pending task found for this item number")
         
     run_id = task["run_id"]
     
-    # 2. Call Supervity's outbound API to unpause and resume the active Operator!
-    headers = {
-        "Authorization": f"Bearer {SUPERVITY_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "status": "approved",
-        "notes": "Approved via custom local Command Center"
-    }
-    
-    resume_url = f"https://auto.supervity.ai/api/v1/runs/{run_id}/resume"
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(resume_url, json=payload, headers=headers, timeout=10.0)
-            
-            if response.status_code == 200:
-                print(f"✅ UNPAUSED SUCCESSFULLY: Resumed Supervity run {run_id}")
-            else:
-                print(f"⚠️ Supervity Cloud returned status {response.status_code}: {response.text}")
-    except Exception as e:
-        print(f"⚠️ Error pinging Supervity Cloud: {str(e)}")
-
-    # 3. Resolve status to 'APPROVED' locally so it clears beautifully from Next.js queue
-    update_query = text("UPDATE pending_tasks SET status = 'APPROVED' WHERE item_number = :item")
-    db.execute(update_query, {"item": item_number})
+    # 2. Update ONLY that specific row using both item_number AND run_id
+    update_query = text("UPDATE pending_tasks SET status = 'APPROVED' WHERE item_number = :item AND run_id = :run_id")
+    db.execute(update_query, {"item": item_number, "run_id": run_id})
     db.commit()
+    
+    # 3. WAKE UP SUPERVITY (Safeguard for "unknown" run IDs)
+    if run_id and run_id != "unknown":
+        try:
+            supervity_resume_url = f"https://api.supervity.ai/v1/runs/{run_id}/resume"
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    supervity_resume_url,
+                    json={"status": "approved"},
+                    headers={
+                        "Authorization": f"Bearer {SUPERVITY_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                )
+                response.raise_for_status() 
+                print(f"✅ Successfully woke up Supervity Run: {run_id}")
+                
+        except httpx.HTTPError as e:
+            print(f"⚠️ Warning: Database updated, but failed to reach Supervity API: {e}")
+    else:
+        print(f"ℹ️ Run ID is '{run_id}' (Placeholder detected). Skipping external Supervity callback, but database was successfully updated.")
     
     return {
         "status": "success",
-        "message": f"Run {run_id} successfully authorized to proceed."
+        "message": f"Task {item_number} successfully approved."
     }
