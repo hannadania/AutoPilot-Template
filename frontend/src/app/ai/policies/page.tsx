@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -17,6 +18,11 @@ import { StructuredBuilder } from '@/components/ai/policies/StructuredBuilder'
 // ============================================================================
 // Demo Data — Replace with your own API integration
 // ============================================================================
+
+
+
+
+/*
 
 const DEMO_POLICIES: Policy[] = [
   {
@@ -116,6 +122,8 @@ const DEMO_POLICIES: Policy[] = [
   },
 ]
 
+*/
+
 // ============================================================================
 // Animation Variants
 // ============================================================================
@@ -182,22 +190,23 @@ export default function AIPoliciesPage() {
   // Data — Loaded from demo data (replace with API fetch)
   // ============================================================================
 
+
+
+
+
+
+
 const loadPolicies = useCallback(async () => {
-    setIsLoading(true)
     try {
-      // Cleaned up fetch URL (no trailing slash):
-      const res = await fetch('http://localhost:8001/api/policies')
-      if (res.ok) {
-        const data = await res.json()
-        setPolicies(data.policies && data.policies.length > 0 ? data.policies : [])
-      } else {
-        console.error("Backend error status:", res.status)
-        setPolicies([]) 
-      }
+      const res = await fetch('http://localhost:8001/api/policies', {
+        cache: 'no-store'
+      })
+      const data = await res.json()
+      setPolicies(data.policies || [])
     } catch (error) {
-      console.error('Failed to fetch policies from FastAPI:', error)
-      setPolicies([]) 
+      console.error("Failed to load policies", error)
     } finally {
+      // 👇 THIS IS THE MAGIC LINE YOU ARE MISSING 👇
       setIsLoading(false)
     }
   }, [])
@@ -205,9 +214,13 @@ const loadPolicies = useCallback(async () => {
 
 
 
-  useEffect(() => {
-    loadPolicies()
-  }, [loadPolicies])
+useEffect(() => {
+    if (activeTab === 'policies') {
+      loadPolicies()
+    }
+  }, [activeTab, loadPolicies])
+
+
 
   // ============================================================================
   // Policy Actions
@@ -223,30 +236,34 @@ const loadPolicies = useCallback(async () => {
     setIsEditModalOpen(true)
   }, [])
 
-  const handleSavePolicy = useCallback(async () => {
-    loadPolicies()
-  }, [loadPolicies])
+
+
+  
 
 
 
 
 
-  const togglePolicyStatus = useCallback(async (id: string, isActive: boolean) => {
+
+const togglePolicyStatus = useCallback(async (id: string, currentStatus: boolean, currentValue: any) => {
+    const newStatus = !currentStatus;
+
     // 1. Instantly update the switch in the UI
-    setPolicies(prev => prev.map(p => p.id === id ? { ...p, is_active: !p.is_active } : p))
+    setPolicies(prev => prev.map(p => p.id === id ? { ...p, is_active: newStatus } : p))
 
-    // 2. Send the update to your FastAPI backend
+    // 2. Send the update to your FastAPI backend without wiping values
     try {
       await fetch(`http://localhost:8001/api/policies/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          is_active: !isActive,
-          value: {}
+          is_active: newStatus,
+          value: currentValue
         }),
       })
     } catch (error) {
       console.error('Failed to update policy in backend:', error)
+      // Optional: rollback UI state on error if needed
     }
   }, [])
 
@@ -256,12 +273,10 @@ const loadPolicies = useCallback(async () => {
 
 
 
-  const deletePolicy = useCallback(async (id: string) => {
-    // Delete locally (replace with API call)
-    setPolicies(prev => prev.filter(p => p.id !== id))
-  }, [])
 
-  const handlePolicyCreate = async (policyData: {
+
+
+const handlePolicyCreate = async (policyData: {
     name: string
     description: string
     naturalLanguage: string
@@ -272,29 +287,67 @@ const loadPolicies = useCallback(async () => {
     tags: string[]
     priority: number
   }) => {
-    // Add locally (replace with API call)
-    const newPolicy: Policy = {
-      id: `user-${Date.now()}`,
-      name: policyData.name,
-      description: policyData.description,
-      natural_language: policyData.naturalLanguage,
-      summary: policyData.description,
-      policy_type: policyData.policyType,
-      dsl: policyData.dsl as Policy['dsl'],
-      refined_instruction: policyData.refinedInstruction,
-      ai_instruction: policyData.naturalLanguage,
-      entity_name: policyData.entityName,
-      is_active: true,
-      priority: policyData.priority,
-      tags: policyData.tags,
-      execution_count: 0,
-      last_executed_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    try {
+      const res = await fetch('http://localhost:8001/api/policies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: policyData.name,
+          description: policyData.description,
+          natural_language: policyData.naturalLanguage,
+          policy_type: policyData.policyType,
+          dsl: policyData.dsl,
+          refined_instruction: policyData.refinedInstruction,
+          entity_name: policyData.entityName,
+          tags: policyData.tags,
+          priority: policyData.priority,
+          is_active: true
+        }),
+      })
+
+      if (res.ok) {
+        // 1. Reload policies instantly
+        await loadPolicies()
+        // 2. Switch back to the main policies tab
+        setActiveTab('policies')
+      } else {
+        console.error('Failed to save policy to backend')
+      }
+    } catch (error) {
+      console.error('Error saving policy:', error)
     }
-    setPolicies(prev => [newPolicy, ...prev])
-    setActiveTab('policies')
   }
+
+
+
+
+
+
+
+
+
+
+  const deletePolicy = async (id: string) => {
+    try {
+      const res = await fetch(`http://localhost:8001/api/policies/${id}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        await loadPolicies() // Refresh the list from backend
+      } else {
+        console.error('Failed to delete policy')
+      }
+    } catch (error) {
+      console.error('Error deleting policy:', error)
+    }
+  }
+
+
+  
+
+
+
+
 
   // ============================================================================
   // Filtering & Sorting
@@ -351,6 +404,21 @@ const loadPolicies = useCallback(async () => {
   // Render
   // ============================================================================
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return (
     <motion.div
       className="space-y-6"
@@ -358,6 +426,15 @@ const loadPolicies = useCallback(async () => {
       initial="hidden"
       animate="visible"
     >
+      {/* 🚀 TOP LEVEL DEBUG BANNER */}
+      <div className="p-4 bg-gray-900 text-green-400 rounded-lg text-xs font-mono border-2 border-red-500">
+        <p><strong>🚨 TOP LEVEL DEBUG:</strong></p>
+        <p>Total Policies Loaded: {policies.length}</p>
+        <p>Filtered Count: {filteredPolicies.length}</p>
+        <p>Current Active Tab: {activeTab}</p>
+        <p>Is Loading: {String(isLoading)}</p>
+      </div>
+
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -410,7 +487,7 @@ const loadPolicies = useCallback(async () => {
         </div>
       </motion.div>
 
-      {/* Tab Content - Use initial={false} on first render to avoid blank state */}
+      {/* Tab Content */}
       <AnimatePresence mode="popLayout">
         {activeTab === 'policies' && (
           <motion.div
@@ -421,90 +498,103 @@ const loadPolicies = useCallback(async () => {
             transition={{ duration: 0.15 }}
             className="space-y-6"
           >
-          {/* Stats Bar - No initial animation to prevent blank flash */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { value: stats.total, label: 'Total Policies', icon: Icons.layers, bg: 'bg-brand-navy/10', color: 'text-brand-navy' },
-              { value: stats.active, label: 'Active', icon: Icons.check, bg: 'bg-emerald-100', color: 'text-emerald-600' },
-              { value: stats.structured, label: 'Structured', icon: Icons.grid, bg: 'bg-blue-100', color: 'text-blue-600' },
-              { value: stats.natural, label: 'Natural Language', icon: Icons.brain, bg: 'bg-purple-100', color: 'text-purple-600' },
-            ].map((stat) => (
-              <motion.div 
-                key={stat.label}
-                className="bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-default"
-                whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-              >
-                <div className="flex items-center gap-3">
-                  <motion.div 
-                    className={cn('p-2 rounded-lg', stat.bg)}
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    transition={{ type: 'spring', stiffness: 400 }}
-                  >
-                    <stat.icon className={cn('h-5 w-5', stat.color)} />
-                  </motion.div>
-                  <div>
-                    <p className={cn('text-2xl font-bold', stat.color)}>
-                      {stat.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+            {/* Stats Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                { value: stats.total, label: 'Total Policies', icon: Icons.layers, bg: 'bg-brand-navy/10', color: 'text-brand-navy' },
+                { value: stats.active, label: 'Active', icon: Icons.check, bg: 'bg-emerald-100', color: 'text-emerald-600' },
+                { value: stats.structured, label: 'Structured', icon: Icons.grid, bg: 'bg-blue-100', color: 'text-blue-600' },
+                { value: stats.natural, label: 'Natural Language', icon: Icons.brain, bg: 'bg-purple-100', color: 'text-purple-600' },
+              ].map((stat) => (
+                <motion.div 
+                  key={stat.label}
+                  className="bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-default"
+                  whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <motion.div 
+                      className={cn('p-2 rounded-lg', stat.bg)}
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      transition={{ type: 'spring', stiffness: 400 }}
+                    >
+                      <stat.icon className={cn('h-5 w-5', stat.color)} />
+                    </motion.div>
+                    <div>
+                      <p className={cn('text-2xl font-bold', stat.color)}>
+                        {stat.value}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Filters & Search */}
-          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Icons.search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search policies..."
-                className={cn(
-                  'w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-white',
-                  'text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50'
-                )}
-              />
+                </motion.div>
+              ))}
             </div>
 
-            {/* Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Filter:</span>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value as FilterType)}
-                className="px-3 py-2.5 rounded-lg border border-input bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
-              >
-                <option value="all">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="logical">Structured</option>
-                <option value="natural_language">Natural Language</option>
-              </select>
-            </div>
+            {/* Filters & Search */}
+            <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Icons.search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search policies..."
+                  className={cn(
+                    'w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-white',
+                    'text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50'
+                  )}
+                />
+              </div>
 
-            {/* Sort */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Sort:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortType)}
-                className="px-3 py-2.5 rounded-lg border border-input bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="priority">Priority</option>
-                <option value="name">Name</option>
-                <option value="executions">Most Used</option>
-              </select>
-            </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Filter:</span>
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value as FilterType)}
+                  className="px-3 py-2.5 rounded-lg border border-input bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
+                >
+                  <option value="all">All</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="logical">Structured</option>
+                  <option value="natural_language">Natural Language</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortType)}
+                  className="px-3 py-2.5 rounded-lg border border-input bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="priority">Priority</option>
+                  <option value="name">Name</option>
+                  <option value="executions">Most Used</option>
+                </select>
+              </div>
+            </motion.div>
           </motion.div>
+        )}
 
-          {/* Policy Grid */}
+
+
+
+
+
+
+
+
+
+
+{/* Policy Grid */}
           <motion.div variants={itemVariants}>
+            {(() => {
+              console.log("Filtered Policies Debug:", filteredPolicies);
+              return null;
+            })()}
             {isLoading ? (
               <div className="flex items-center justify-center py-16">
                 <Icons.loader className="h-8 w-8 animate-spin text-brand-cornflower" />
@@ -538,10 +628,15 @@ const loadPolicies = useCallback(async () => {
                 </CardContent>
               </Card>
             ) : (
+
+
+
+
+
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredPolicies.map((policy) => (
                   <PolicyCard
-                    key={policy.id}
+                    key={policy.id || Math.random()}
                     policy={policy}
                     onClick={handleCardClick}
                   />
@@ -549,8 +644,14 @@ const loadPolicies = useCallback(async () => {
               </div>
             )}
           </motion.div>
-        </motion.div>
-      )}
+
+
+
+
+
+
+
+
 
       {activeTab === 'create-ai' && (
         <motion.div
@@ -595,6 +696,7 @@ const loadPolicies = useCallback(async () => {
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-foreground mb-1.5">Rule Name *</label>
                   <input
+                  
                     type="text"
                     value={structuredName}
                     onChange={(e) => setStructuredName(e.target.value)}
@@ -664,7 +766,7 @@ const loadPolicies = useCallback(async () => {
       )}
       </AnimatePresence>
 
-      {/* Detail Modal - View only */}
+{/* Detail Modal - View only */}
       <PolicyDetailModal
         policy={selectedPolicy}
         isOpen={isDetailModalOpen}
@@ -674,7 +776,7 @@ const loadPolicies = useCallback(async () => {
         }}
         onEdit={handleEditFromDetail}
         onToggleStatus={(id, isActive) => {
-          togglePolicyStatus(id, isActive)
+          togglePolicyStatus(id, isActive, null)
           setIsDetailModalOpen(false)
         }}
         onDelete={(id) => {
@@ -683,7 +785,9 @@ const loadPolicies = useCallback(async () => {
         }}
       />
 
-      {/* Edit Modal */}
+
+
+{/* Edit Modal */}
       <PolicyEditModal
         policy={editingPolicy}
         isOpen={isEditModalOpen}
@@ -691,8 +795,26 @@ const loadPolicies = useCallback(async () => {
           setIsEditModalOpen(false)
           setEditingPolicy(null)
         }}
-        onSave={handleSavePolicy}
+        onSave={async (updatedPolicy) => {
+            // Re-use your existing toggle logic to save edits!
+            // 👇 ADDING (updatedPolicy as any) FIXES THE BUILD ERROR 👇
+            await togglePolicyStatus(updatedPolicy.id, !updatedPolicy.is_active, (updatedPolicy as any).value)
+            setIsEditModalOpen(false)
+            setEditingPolicy(null)
+        }}
       />
+
+
+
+
+
+
+
+
+
+
+
     </motion.div>
   )
 }
+

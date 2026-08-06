@@ -5,23 +5,48 @@ from sqlalchemy import text
 from typing import Dict, Any, Optional, List
 import datetime
 
-# Correct import for your template's db session
-from app.core.database import get_db
 
-router = APIRouter(prefix="/api/policies", tags=["Policies"])
 
-# Matches Hanna's custom Pydantic schema
+
+
+
+
+# --- SCHEMAS (Put these right under your imports) ---
+
 class PolicyUpdate(BaseModel):
     is_active: bool
     value: Optional[Dict[str, Any]] = None
 
-
-# Evaluation Request payload sent by your Supervity Orchestrator
+# This is the one that went missing!
 class PolicyEvaluationRequest(BaseModel):
     item_number: str
     proposed_cost: float
     customer_priority: str  # 'critical', 'high', 'medium', 'low'
     triggers_penalty: bool
+
+class PolicyCreateSchema(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    natural_language: Optional[str] = ""
+    policy_type: str = "logical"
+    dsl: Optional[Dict[str, Any]] = None
+    refined_instruction: Optional[str] = None
+    entity_name: Optional[str] = None
+    tags: Optional[List[str]] = []
+    priority: int = 0
+    is_active: bool = True
+
+# ... your @router.on_event and @router.post endpoints go down below ...
+
+
+
+
+
+
+# Correct import for your template's db session
+from app.core.database import get_db
+
+router = APIRouter(prefix="/api/policies", tags=["Policies"])
 
 
 @router.on_event("startup")
@@ -83,6 +108,10 @@ def init_policies_table():
         print(f"⚠️ Seed/Init warning: {str(e)}")
 
 
+
+
+
+
 @router.get("")
 async def get_all_policies(db: Session = Depends(get_db)):
     """
@@ -100,9 +129,17 @@ async def get_all_policies(db: Session = Depends(get_db)):
             "description": row["description"],
             "natural_language": row["natural_language"],
             "is_active": row["is_active"],
-            "value": row["value_json"]
+            "value": row["value_json"],
+            "type": "structured",         # 👈 This tells the frontend it's a structured rule
+            "policy_type": "logical"      # 👈 Ensures it matches the frontend schema
         })
     return {"policies": policies_list}
+
+
+
+
+
+
 
 
 @router.put("/{policy_id}")
@@ -202,3 +239,51 @@ async def evaluate_policies(
         "escalation_reasons": escalation_reasons,
         "timestamp": datetime.datetime.now().isoformat()
     }
+
+
+
+
+
+import uuid
+import json
+
+@router.post("")
+async def create_policy(policy: PolicyCreateSchema, db: Session = Depends(get_db)):
+    """
+    Saves a new custom policy created from the Structured Builder.
+    """
+    policy_id = f"custom-policy-{uuid.uuid4().hex[:8]}"
+    
+    insert_query = text("""
+        INSERT INTO ai_policies (id, name, description, natural_language, is_active, value_json)
+        VALUES (:id, :name, :description, :natural_language, :is_active, :value_json)
+    """)
+    
+    db.execute(insert_query, {
+        "id": policy_id,
+        "name": policy.name,
+        "description": policy.description,
+        "natural_language": policy.natural_language,
+        "is_active": policy.is_active,
+        "value_json": json.dumps(policy.dsl) if policy.dsl else "{}"
+    })
+    db.commit()
+    
+    print(f"✨ NEW POLICY CREATED: '{policy.name}' ({policy_id})")
+    return {"status": "success", "id": policy_id, "message": "Policy created successfully"}
+
+
+@router.delete("/{policy_id}")
+async def delete_policy(policy_id: str, db: Session = Depends(get_db)):
+    """
+    Deletes a policy by ID when requested from the frontend dashboard.
+    """
+    check = db.execute(text("SELECT id FROM ai_policies WHERE id = :id"), {"id": policy_id}).first()
+    if not check:
+        raise HTTPException(status_code=404, detail="Policy not found")
+
+    db.execute(text("DELETE FROM ai_policies WHERE id = :id"), {"id": policy_id})
+    db.commit()
+    
+    print(f"🗑️ POLICY DELETED: '{policy_id}'")
+    return {"status": "success", "message": f"Policy '{policy_id}' successfully deleted."}
