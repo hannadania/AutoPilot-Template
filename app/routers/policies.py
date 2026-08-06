@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Dict, Any, Optional, List
-import datetime
 
+import re
+import json
+import datetime
+from typing import Dict, Any
+from pydantic import BaseModel
+from fastapi import Depends
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 
@@ -287,3 +289,124 @@ async def delete_policy(policy_id: str, db: Session = Depends(get_db)):
     
     print(f"🗑️ POLICY DELETED: '{policy_id}'")
     return {"status": "success", "message": f"Policy '{policy_id}' successfully deleted."}
+
+
+
+
+
+
+
+    # ==========================================
+# AI Parser Schemas
+# ==========================================
+class PolicyAnalyzeRequest(BaseModel):
+    prompt: str
+
+class NewPolicyCreate(BaseModel):
+    id: str
+    name: str
+    description: str
+    natural_language: str
+    is_active: bool
+    value: Dict[str, Any]
+
+# ==========================================
+# 1. THE AI ANALYSIS ENDPOINT
+# ==========================================
+@router.post("/analyze")
+async def analyze_natural_language_policy(request: PolicyAnalyzeRequest):
+    """
+    Receives plain-text business rules and extracts key thresholds, 
+    tiers, and rules dynamically to populate the structured UI form.
+    """
+    prompt_text = request.prompt
+    prompt_lower = prompt_text.lower()
+    
+    # Heuristically extract values (Perfect for fast, offline demos!)
+    # A. Search for numerical limits/surcharges
+    limit_value = 50000.0  
+    numbers = re.findall(r'\$?(\d+[\d,]*)\s*(?:k|thousand)?', prompt_lower)
+    if numbers:
+        cleaned_num = numbers[0].replace(',', '')
+        val = float(cleaned_num)
+        if 'k' in prompt_lower or 'k' in numbers[0]:
+            val *= 1000
+        limit_value = val
+
+    # B. Search for customer priority tiers
+    tier_value = "high" 
+    if "critical" in prompt_lower:
+        tier_value = "critical"
+    elif "high" in prompt_lower:
+        tier_value = "high"
+    elif "medium" in prompt_lower:
+        tier_value = "medium"
+    elif "low" in prompt_lower:
+        tier_value = "low"
+
+    # C. Search for allowance of penalty clauses
+    allow_penalty = False 
+    if "allow" in prompt_lower or "approve" in prompt_lower or "yes" in prompt_lower:
+        allow_penalty = True
+    elif "ban" in prompt_lower or "block" in prompt_lower or "escalate" in prompt_lower:
+        allow_penalty = False
+
+    # D. Auto-generate a clean slug ID and display name
+    slug_id = re.sub(r'[^a-zA-Z0-9]', '-', prompt_lower[:30]).strip('-')
+    if not slug_id:
+        slug_id = "custom-ai-rule"
+
+    words = prompt_text.split()
+    rule_name = " ".join(words[:4]) + "..." if len(words) > 4 else prompt_text
+    rule_name = rule_name.strip().title()
+
+    analyzed_data = {
+        "id": slug_id,
+        "name": rule_name,
+        "description": f"AI-extracted policy based on: '{prompt_text}'",
+        "natural_language": prompt_text,
+        "is_active": True,
+        "value": {
+            "limit": limit_value,
+            "tier": tier_value,
+            "allow": allow_penalty
+        },
+        "conflicts": [] 
+    }
+
+    print(f"🧠 AI ANALYSIS: Parsed prompt '{prompt_text}' into structured parameters: {analyzed_data['value']}")
+    return analyzed_data
+
+# ==========================================
+# 2. THE CREATE ENDPOINT
+# ==========================================
+@router.post("")
+async def create_custom_policy(payload: NewPolicyCreate, db: Session = Depends(get_db)):
+    """
+    Saves a newly designed natural-language policy straight to the database.
+    """
+    check = db.execute(
+        text("SELECT id FROM ai_policies WHERE id = :id"), 
+        {"id": payload.id}
+    ).first()
+    
+    if check:
+        payload.id = f"{payload.id}-{int(datetime.datetime.now().timestamp())}"
+
+    insert_query = text("""
+        INSERT INTO ai_policies (id, name, description, natural_language, is_active, value_json)
+        VALUES (:id, :name, :desc, :nat_lang, :active, :val::jsonb)
+    """)
+    
+    db.execute(insert_query, {
+        "id": payload.id,
+        "name": payload.name,
+        "desc": payload.description,
+        "nat_lang": payload.natural_language,
+        "active": payload.is_active,
+        "val": json.dumps(payload.value)
+    })
+    db.commit()
+
+    print(f"💾 DATABASE SAVED: Custom AI Policy '{payload.name}' written successfully to Supabase.")
+    return {"status": "success", "message": "Policy successfully created."}
