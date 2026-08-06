@@ -2,7 +2,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,132 +13,6 @@ import { PolicyEditModal } from '@/components/ai/policies/PolicyEditModal'
 import { CreateWithAI } from '@/components/ai/policies/CreateWithAI'
 import { PermissionMatrixTab } from '@/components/ai/policies/PermissionMatrixTab'
 import { StructuredBuilder } from '@/components/ai/policies/StructuredBuilder'
-
-// ============================================================================
-// Demo Data — Replace with your own API integration
-// ============================================================================
-
-
-
-
-/*
-
-const DEMO_POLICIES: Policy[] = [
-  {
-    id: 'demo-001',
-    name: 'Auto-Approve Low Value Invoices',
-    description: 'Automatically approve invoices under $500 from approved vendors.',
-    natural_language: 'If an invoice total is less than $500 and the vendor is in our approved vendor list, automatically approve for payment without requiring manual review.',
-    summary: 'Auto-approves low-value invoices from trusted vendors to reduce manual workload.',
-    policy_type: 'logical',
-    dsl: { conditions: [{ field: 'amount', operator: 'less_than', value: '500' }, { field: 'vendor_status', operator: 'equals', value: 'approved' }], actions: [{ type: 'auto_approve' }], match_mode: 'all' },
-    refined_instruction: null,
-    ai_instruction: 'WHEN amount < 500 AND vendor_status = approved THEN auto_approve',
-    entity_name: 'invoice',
-    is_active: true,
-    priority: 10,
-    tags: ['finance', 'auto-approve', 'demo'],
-    execution_count: 120,
-    last_executed_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-002',
-    name: 'CFO Approval for Large Transactions',
-    description: 'Require CFO approval for any transaction exceeding $50,000.',
-    natural_language: 'Any transaction or purchase order exceeding $50,000 must be reviewed and approved by the CFO before processing.',
-    summary: 'Enforces executive approval on high-value transactions.',
-    policy_type: 'logical',
-    dsl: { conditions: [{ field: 'amount', operator: 'greater_than', value: '50000' }], actions: [{ type: 'require_approval', value: 'CFO' }], match_mode: 'all' },
-    refined_instruction: null,
-    ai_instruction: 'WHEN amount > 50000 THEN require_approval(CFO)',
-    entity_name: 'transaction',
-    is_active: true,
-    priority: 5,
-    tags: ['finance', 'escalation', 'demo'],
-    execution_count: 45,
-    last_executed_at: new Date(Date.now() - 3600000).toISOString(),
-    created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 4 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-003',
-    name: 'New Employee Onboarding Checklist',
-    description: 'Automatically assign onboarding steps when a new employee is created.',
-    natural_language: 'When a new employee record is created, automatically assign the standard onboarding checklist, notify their manager, and schedule the Day 1 orientation meeting.',
-    summary: 'Triggers automated onboarding workflow for new hires.',
-    policy_type: 'natural_language',
-    dsl: null,
-    refined_instruction: 'On new employee creation: assign onboarding checklist, notify manager, schedule Day 1 orientation.',
-    ai_instruction: 'On new employee creation: assign onboarding checklist, notify manager, schedule Day 1 orientation.',
-    entity_name: 'employee',
-    is_active: true,
-    priority: 15,
-    tags: ['hr', 'onboarding', 'demo'],
-    execution_count: 30,
-    last_executed_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 6 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-004',
-    name: 'Suspicious Login Alert',
-    description: 'Flag and alert on logins from new devices or unusual locations.',
-    natural_language: 'If a user logs in from a new device or from a country they have never logged in from before, flag the session for security review and send an alert to the user email.',
-    summary: 'Detects and alerts on anomalous login patterns for security.',
-    policy_type: 'natural_language',
-    dsl: null,
-    refined_instruction: 'On login: if device is new OR country is new, flag session for review, send email alert.',
-    ai_instruction: 'On login: if device is new OR country is new, flag session for review, send email alert.',
-    entity_name: 'session',
-    is_active: true,
-    priority: 1,
-    tags: ['security', 'alerting', 'demo'],
-    execution_count: 85,
-    last_executed_at: new Date(Date.now() - 30 * 60000).toISOString(),
-    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 8 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-005',
-    name: 'Enterprise Ticket Escalation',
-    description: 'Auto-escalate support tickets from high-value customers.',
-    natural_language: 'When a support ticket is created by an enterprise-tier customer or a customer with annual contract value over $100K, automatically escalate to Tier 2 support and set priority to high.',
-    summary: 'Ensures enterprise customers receive priority support.',
-    policy_type: 'logical',
-    dsl: { conditions: [{ field: 'customer_tier', operator: 'equals', value: 'enterprise' }], actions: [{ type: 'escalate', value: 'tier_2' }, { type: 'set_priority', value: 'high' }], match_mode: 'any' },
-    refined_instruction: null,
-    ai_instruction: 'WHEN customer_tier = enterprise OR contract_value > 100000 THEN escalate(tier_2), set_priority(high)',
-    entity_name: 'ticket',
-    is_active: false,
-    priority: 8,
-    tags: ['support', 'escalation', 'demo'],
-    execution_count: 15,
-    last_executed_at: new Date(Date.now() - 12 * 3600000).toISOString(),
-    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 10 * 3600000).toISOString(),
-  },
-]
-
-*/
-
-// ============================================================================
-// Animation Variants
-// ============================================================================
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
-}
 
 // ============================================================================
 // Types
@@ -187,40 +60,35 @@ export default function AIPoliciesPage() {
   const [isSavingStructured, setIsSavingStructured] = useState(false)
 
   // ============================================================================
-  // Data — Loaded from demo data (replace with API fetch)
+  // Data Fetching
   // ============================================================================
 
-
-
-
-
-
-
-const loadPolicies = useCallback(async () => {
+  const loadPolicies = useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:8001/api/policies', {
-        cache: 'no-store'
-      })
-      const data = await res.json()
-      setPolicies(data.policies || [])
+      setIsLoading(true);
+      const timestamp = new Date().getTime();
+      const res = await fetch(`http://localhost:8001/api/policies?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      const data = await res.json();
+      setPolicies(data.policies || []);
     } catch (error) {
-      console.error("Failed to load policies", error)
+      console.error("Failed to load policies", error);
     } finally {
-      // 👇 THIS IS THE MAGIC LINE YOU ARE MISSING 👇
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [])
+  }, []);
 
-
-
-
-useEffect(() => {
+  useEffect(() => {
     if (activeTab === 'policies') {
       loadPolicies()
     }
   }, [activeTab, loadPolicies])
-
-
 
   // ============================================================================
   // Policy Actions
@@ -236,22 +104,10 @@ useEffect(() => {
     setIsEditModalOpen(true)
   }, [])
 
-
-
-  
-
-
-
-
-
-
-const togglePolicyStatus = useCallback(async (id: string, currentStatus: boolean, currentValue: any) => {
+  const togglePolicyStatus = useCallback(async (id: string, currentStatus: boolean, currentValue: any) => {
     const newStatus = !currentStatus;
-
-    // 1. Instantly update the switch in the UI
     setPolicies(prev => prev.map(p => p.id === id ? { ...p, is_active: newStatus } : p))
 
-    // 2. Send the update to your FastAPI backend without wiping values
     try {
       await fetch(`http://localhost:8001/api/policies/${id}`, {
         method: 'PUT',
@@ -263,20 +119,10 @@ const togglePolicyStatus = useCallback(async (id: string, currentStatus: boolean
       })
     } catch (error) {
       console.error('Failed to update policy in backend:', error)
-      // Optional: rollback UI state on error if needed
     }
   }, [])
 
-
-
-
-
-
-
-
-
-
-const handlePolicyCreate = async (policyData: {
+  const handlePolicyCreate = async (policyData: {
     name: string
     description: string
     naturalLanguage: string
@@ -306,26 +152,15 @@ const handlePolicyCreate = async (policyData: {
       })
 
       if (res.ok) {
-        // 1. Reload policies instantly
-        await loadPolicies()
-        // 2. Switch back to the main policies tab
-        setActiveTab('policies')
+        setActiveTab('policies');
+        await loadPolicies();
       } else {
-        console.error('Failed to save policy to backend')
+        console.error('Failed to save policy to backend');
       }
     } catch (error) {
       console.error('Error saving policy:', error)
     }
   }
-
-
-
-
-
-
-
-
-
 
   const deletePolicy = async (id: string) => {
     try {
@@ -333,7 +168,7 @@ const handlePolicyCreate = async (policyData: {
         method: 'DELETE',
       })
       if (res.ok) {
-        await loadPolicies() // Refresh the list from backend
+        await loadPolicies()
       } else {
         console.error('Failed to delete policy')
       }
@@ -341,13 +176,6 @@ const handlePolicyCreate = async (policyData: {
       console.error('Error deleting policy:', error)
     }
   }
-
-
-  
-
-
-
-
 
   // ============================================================================
   // Filtering & Sorting
@@ -404,39 +232,10 @@ const handlePolicyCreate = async (policyData: {
   // Render
   // ============================================================================
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   return (
-    <motion.div
-      className="space-y-6"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      {/* 🚀 TOP LEVEL DEBUG BANNER */}
-      <div className="p-4 bg-gray-900 text-green-400 rounded-lg text-xs font-mono border-2 border-red-500">
-        <p><strong>🚨 TOP LEVEL DEBUG:</strong></p>
-        <p>Total Policies Loaded: {policies.length}</p>
-        <p>Filtered Count: {filteredPolicies.length}</p>
-        <p>Current Active Tab: {activeTab}</p>
-        <p>Is Loading: {String(isLoading)}</p>
-      </div>
-
+    <div className="space-y-6">
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-display-3 font-bold tracking-tight text-brand-navy lg:text-display-2">
             AI Policies
@@ -453,51 +252,42 @@ const handlePolicyCreate = async (policyData: {
           <Icons.plus className="mr-2 h-4 w-4" />
           Create Policy
         </Button>
-      </motion.div>
+      </div>
 
-      {/* Tabs - AT THE TOP */}
-      <motion.div variants={itemVariants}>
+      {/* Tabs */}
+      <div>
         <div className="flex gap-1 p-1.5 bg-gray-100 rounded-xl">
           {TABS.map((tab) => (
-            <motion.button
+            <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (tab.id === 'policies') {
+                  loadPolicies();
+                }
+              }}
               className={cn(
                 'relative flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 activeTab === tab.id
-                  ? 'text-brand-navy'
+                  ? 'text-brand-navy bg-white shadow-sm font-semibold'
                   : 'text-muted-foreground hover:text-foreground'
               )}
-              whileHover={{ scale: activeTab === tab.id ? 1 : 1.02 }}
-              whileTap={{ scale: 0.98 }}
             >
-              {activeTab === tab.id && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-0 bg-white rounded-lg shadow-sm"
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                />
-              )}
               <span className="relative z-10 flex items-center gap-2">
                 <tab.Icon className="h-4 w-4" />
                 {tab.label}
               </span>
-            </motion.button>
+            </button>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       {/* Tab Content */}
-      <AnimatePresence mode="popLayout">
+      <div className="mt-6">
+        
+        {/* POLICIES TAB */}
         {activeTab === 'policies' && (
-          <motion.div
-            key="policies-tab"
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="space-y-6"
-          >
+          <div key="policies-tab" className="space-y-6">
             {/* Stats Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
@@ -506,19 +296,14 @@ const handlePolicyCreate = async (policyData: {
                 { value: stats.structured, label: 'Structured', icon: Icons.grid, bg: 'bg-blue-100', color: 'text-blue-600' },
                 { value: stats.natural, label: 'Natural Language', icon: Icons.brain, bg: 'bg-purple-100', color: 'text-purple-600' },
               ].map((stat) => (
-                <motion.div 
+                <div 
                   key={stat.label}
-                  className="bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-default"
-                  whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  className="bg-white rounded-xl border border-gray-200 p-4"
                 >
                   <div className="flex items-center gap-3">
-                    <motion.div 
-                      className={cn('p-2 rounded-lg', stat.bg)}
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      transition={{ type: 'spring', stiffness: 400 }}
-                    >
+                    <div className={cn('p-2 rounded-lg', stat.bg)}>
                       <stat.icon className={cn('h-5 w-5', stat.color)} />
-                    </motion.div>
+                    </div>
                     <div>
                       <p className={cn('text-2xl font-bold', stat.color)}>
                         {stat.value}
@@ -526,12 +311,12 @@ const handlePolicyCreate = async (policyData: {
                       <p className="text-xs text-muted-foreground">{stat.label}</p>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
 
             {/* Filters & Search */}
-            <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Icons.search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
@@ -575,198 +360,155 @@ const handlePolicyCreate = async (policyData: {
                   <option value="executions">Most Used</option>
                 </select>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+
+            {/* Policy Grid */}
+            <div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Icons.loader className="h-8 w-8 animate-spin text-brand-cornflower" />
+                </div>
+              ) : filteredPolicies.length === 0 ? (
+                <Card className="relative overflow-hidden">
+                  <CardWatermark opacity={3} scale={1} />
+                  <CardContent className="relative z-10 flex flex-col items-center justify-center py-16 text-center">
+                    <div className={cn(
+                      'mb-4 flex h-16 w-16 items-center justify-center rounded-2xl',
+                      'bg-gradient-to-br from-brand-cornflower/20 to-brand-purple/20'
+                    )}>
+                      <Icons.brain className="h-8 w-8 text-brand-cornflower" strokeWidth={1.5} />
+                    </div>
+                    <h3 className="font-display text-lg font-semibold text-brand-navy">
+                      {searchQuery || filter !== 'all' ? 'No matching policies' : 'No policies yet'}
+                    </h3>
+                    <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                      {searchQuery || filter !== 'all'
+                        ? 'Try adjusting your search or filter criteria.'
+                        : 'Create your first AI policy using natural language.'}
+                    </p>
+                    <Button
+                      variant="gradient"
+                      className="mt-6"
+                      onClick={() => setActiveTab('create-ai')}
+                    >
+                      <Icons.sparkles className="mr-2 h-4 w-4" />
+                      Create with AI
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div key={policies.length} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredPolicies.map((policy) => (
+                    <PolicyCard
+                      key={policy.id || Math.random()}
+                      policy={policy}
+                      onClick={handleCardClick}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
-
-
-
-
-
-
-
-
-
-
-{/* Policy Grid */}
-          <motion.div variants={itemVariants}>
-            {(() => {
-              console.log("Filtered Policies Debug:", filteredPolicies);
-              return null;
-            })()}
-            {isLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Icons.loader className="h-8 w-8 animate-spin text-brand-cornflower" />
-              </div>
-            ) : filteredPolicies.length === 0 ? (
-              <Card className="relative overflow-hidden">
-                <CardWatermark opacity={3} scale={1} />
-                <CardContent className="relative z-10 flex flex-col items-center justify-center py-16 text-center">
-                  <div className={cn(
-                    'mb-4 flex h-16 w-16 items-center justify-center rounded-2xl',
-                    'bg-gradient-to-br from-brand-cornflower/20 to-brand-purple/20'
-                  )}>
-                    <Icons.brain className="h-8 w-8 text-brand-cornflower" strokeWidth={1.5} />
-                  </div>
-                  <h3 className="font-display text-lg font-semibold text-brand-navy">
-                    {searchQuery || filter !== 'all' ? 'No matching policies' : 'No policies yet'}
-                  </h3>
-                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                    {searchQuery || filter !== 'all'
-                      ? 'Try adjusting your search or filter criteria.'
-                      : 'Create your first AI policy using natural language.'}
-                  </p>
-                  <Button
-                    variant="gradient"
-                    className="mt-6"
-                    onClick={() => setActiveTab('create-ai')}
-                  >
-                    <Icons.sparkles className="mr-2 h-4 w-4" />
-                    Create with AI
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-
-
-
-
-
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredPolicies.map((policy) => (
-                  <PolicyCard
-                    key={policy.id || Math.random()}
-                    policy={policy}
-                    onClick={handleCardClick}
-                  />
-                ))}
-              </div>
-            )}
-          </motion.div>
-
-
-
-
-
-
-
-
-
-      {activeTab === 'create-ai' && (
-        <motion.div
-          key="create-ai-tab"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.15 }}
-        >
-          <Card className="relative overflow-hidden">
-            <CardWatermark opacity={2} scale={1} />
-            <CardContent className="relative z-10 py-8">
-              <CreateWithAI
-                onPolicyCreate={handlePolicyCreate}
-                onCancel={() => setActiveTab('policies')}
-              />
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {activeTab === 'structured' && (
-        <motion.div
-          key="structured-tab"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.15 }}
-        >
-          <Card className="relative overflow-hidden">
-            <CardWatermark opacity={2} scale={1} />
-            <CardContent className="relative z-10 py-8">
-              <div className="max-w-3xl mx-auto">
-                <div className="text-center mb-8">
-                  <h2 className="text-xl font-bold text-brand-navy mb-2">
-                    Structured Rule Builder
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Visually build rules with conditions and actions
-                  </p>
-                </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Rule Name *</label>
-                  <input
-                  
-                    type="text"
-                    value={structuredName}
-                    onChange={(e) => setStructuredName(e.target.value)}
-                    placeholder="e.g., Auto-Approve Low Value Items"
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
-                  />
-                </div>
-                <StructuredBuilder
-                  onChange={(dsl) => setStructuredDSL(dsl)}
+        {/* CREATE WITH AI TAB */}
+        {activeTab === 'create-ai' && (
+          <div key="create-ai-tab" className="pt-2">
+            <Card className="relative overflow-hidden">
+              <CardWatermark opacity={2} scale={1} />
+              <CardContent className="relative z-10 py-8">
+                <CreateWithAI
+                  onPolicyCreate={handlePolicyCreate}
+                  onCancel={() => setActiveTab('policies')}
                 />
-                <div className="flex justify-center gap-3 mt-8">
-                  <Button variant="ghost" onClick={() => setActiveTab('policies')}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="gradient"
-                    disabled={!structuredDSL || structuredDSL.conditions.length === 0 || !structuredName.trim() || isSavingStructured}
-                    onClick={async () => {
-                      if (!structuredDSL || !structuredName.trim()) return
-                      setIsSavingStructured(true)
-                      try {
-                        await handlePolicyCreate({
-                          name: structuredName.trim(),
-                          description: '',
-                          naturalLanguage: `Structured rule: ${structuredName}`,
-                          policyType: 'logical',
-                          dsl: {
-                            conditions: structuredDSL.conditions.map(c => ({ field: c.field, operator: c.operator, value: c.value })),
-                            actions: structuredDSL.actions.map(a => ({ type: a.type, value: a.value })),
-                            match_mode: structuredDSL.match_mode,
-                          },
-                          refinedInstruction: null,
-                          entityName: null,
-                          tags: ['structured'],
-                          priority: 50,
-                        })
-                        setStructuredName('')
-                        setStructuredDSL(null)
-                      } finally {
-                        setIsSavingStructured(false)
-                      }
-                    }}
-                  >
-                    {isSavingStructured ? (
-                      <><Icons.loader className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                    ) : (
-                      <><Icons.check className="mr-2 h-4 w-4" />Save Policy</>
-                    )}
-                  </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* STRUCTURED BUILDER TAB */}
+        {activeTab === 'structured' && (
+          <div key="structured-tab" className="pt-2">
+            <Card className="relative overflow-hidden">
+              <CardWatermark opacity={2} scale={1} />
+              <CardContent className="relative z-10 py-8">
+                <div className="max-w-3xl mx-auto">
+                  <div className="text-center mb-8">
+                    <h2 className="text-xl font-bold text-brand-navy mb-2">
+                      Structured Rule Builder
+                    </h2>
+                    <p className="text-muted-foreground">
+                      Visually build rules with conditions and actions
+                    </p>
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Rule Name *</label>
+                    <input
+                      type="text"
+                      value={structuredName}
+                      onChange={(e) => setStructuredName(e.target.value)}
+                      placeholder="e.g., Auto-Approve Low Value Items"
+                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
+                    />
+                  </div>
+                  <StructuredBuilder
+                    onChange={(dsl) => setStructuredDSL(dsl)}
+                  />
+                  <div className="flex justify-center gap-3 mt-8">
+                    <Button variant="ghost" onClick={() => setActiveTab('policies')}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="gradient"
+                      disabled={!structuredDSL || structuredDSL.conditions.length === 0 || !structuredName.trim() || isSavingStructured}
+                      onClick={async () => {
+                        if (!structuredDSL || !structuredName.trim()) return
+                        setIsSavingStructured(true)
+                        try {
+                          await handlePolicyCreate({
+                            name: structuredName.trim(),
+                            description: '',
+                            naturalLanguage: `Structured rule: ${structuredName}`,
+                            policyType: 'logical',
+                            dsl: {
+                              conditions: structuredDSL.conditions.map(c => ({ field: c.field, operator: c.operator, value: c.value })),
+                              actions: structuredDSL.actions.map(a => ({ type: a.type, value: a.value })),
+                              match_mode: structuredDSL.match_mode,
+                            },
+                            refinedInstruction: null,
+                            entityName: null,
+                            tags: ['structured'],
+                            priority: 50,
+                          })
+                          setStructuredName('')
+                          setStructuredDSL(null)
+                        } finally {
+                          setIsSavingStructured(false)
+                        }
+                      }}
+                    >
+                      {isSavingStructured ? (
+                        <><Icons.loader className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+                      ) : (
+                        <><Icons.check className="mr-2 h-4 w-4" />Save Policy</>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-      {activeTab === 'matrix' && (
-        <motion.div
-          key="matrix-tab"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.15 }}
-        >
-          <PermissionMatrixTab />
-        </motion.div>
-      )}
-      </AnimatePresence>
+        {/* PERMISSION MATRIX TAB */}
+        {activeTab === 'matrix' && (
+          <div key="matrix-tab" className="pt-2">
+            <PermissionMatrixTab />
+          </div>
+        )}
+      </div>
 
-{/* Detail Modal - View only */}
+      {/* Detail Modal - View only */}
       <PolicyDetailModal
         policy={selectedPolicy}
         isOpen={isDetailModalOpen}
@@ -785,9 +527,7 @@ const handlePolicyCreate = async (policyData: {
         }}
       />
 
-
-
-{/* Edit Modal */}
+      {/* Edit Modal */}
       <PolicyEditModal
         policy={editingPolicy}
         isOpen={isEditModalOpen}
@@ -796,25 +536,11 @@ const handlePolicyCreate = async (policyData: {
           setEditingPolicy(null)
         }}
         onSave={async (updatedPolicy) => {
-            // Re-use your existing toggle logic to save edits!
-            // 👇 ADDING (updatedPolicy as any) FIXES THE BUILD ERROR 👇
             await togglePolicyStatus(updatedPolicy.id, !updatedPolicy.is_active, (updatedPolicy as any).value)
             setIsEditModalOpen(false)
             setEditingPolicy(null)
         }}
       />
-
-
-
-
-
-
-
-
-
-
-
-    </motion.div>
+    </div>
   )
 }
-
