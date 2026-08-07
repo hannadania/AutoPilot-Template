@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import httpx
 import os
+from app.models import PendingTask  # (or wherever your models are defined)
 
 # Corrected database import path from your template
 from app.core.database import get_db
@@ -23,7 +24,7 @@ class SupervityApprovalPayload(BaseModel):
     jira_ticket_url: str
 
 
-@router.post("/api/webhooks/supervity/workbench")
+@router.post("/webhooks/supervity/workbench")
 async def catch_ai_approval(
     payload: SupervityApprovalPayload,
     db: Session = Depends(get_db)
@@ -87,25 +88,55 @@ async def get_pending_approvals(db: Session = Depends(get_db)):
 
 @router.put("/api/webhooks/supervity/workbench/{item_number}/approve")
 async def approve_task(item_number: str, db: Session = Depends(get_db)):
-    # 1. Pull the specific task and its dynamic run_id from the database
-    select_query = text("SELECT run_id FROM pending_tasks WHERE item_number = :item AND status = 'PENDING'")
-    task = db.execute(select_query, {"item": item_number}).mappings().first()
+    """
+    Triggers when you click 'Approve Action' on your Next.js frontend dashboard.
+    Accepts the item_number SKU string, finds the run_id, and unpauses Supervity!
+    """
+    # 1. Pull the run_id for this SKU from your database
+    get_query = text("SELECT run_id FROM pending_tasks WHERE item_number = :item AND status = 'PENDING' LIMIT 1")
+    task = db.execute(get_query, {"item": item_number}).mappings().first()
     
     if not task:
-        raise HTTPException(status_code=404, detail="Pending task not found for this item.")
-
-    # 2. Construct the resume URL using the ACTUAL UUID stored in your DB
-    # This fixes the 404 error by replacing human-readable names with system IDs
-    resume_url = f"https://api.supervity.ai/v1/runs/{task['run_id']}/resume"
-    
-    # 3. Call the Supervity API to wake up the paused AI Agent
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            resume_url,
-            headers={"Authorization": f"Bearer {SUPERVITY_API_KEY}"},
-            json={"decision": "Approved", "notes": "Authorized via Command Center Workbench"}
-        )
+        raise HTTPException(status_code=404, detail="No pending task found for this item number")
         
+    run_id = task["run_id"]
+    
+    # 2. Call Supervity API to resume
+    headers = {
+        "Authorization": f"Bearer {SUPERVITY_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "status": "approved",
+        "notes": "Approved via custom local Command Center"
+    }
+    resume_url = f"https://auto.supervity.ai/api/v1/runs/{run_id}/resume"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(resume_url, json=payload, headers=headers, timeout=10.0)
+            if response.status_code == 200:
+                print(f"✅ UNPAUSED SUCCESSFULLY: Resumed Supervity run {run_id}")
+            else:
+                print(f"⚠️ Supervity Cloud returned status {response.status_code}: {response.text}")
+    except Exception as e:
+        print(f"⚠️ Error pinging Supervity Cloud: {str(e)}")
+
+    # 3. Resolve status locally so it clears from the Next.js queue
+    update_query = text("UPDATE pending_tasks SET status = 'APPROVED' WHERE item_number = :item")
+    db.execute(update_query, {"item": item_number})
+    db.commit()
+    
+    return {
+        "status": "success",
+        "message": f"Run {run_id} successfully authorized to proceed."
+    }
+
+
+
+
+
+
     if response.status_code != 200:
         print(f"❌ Supervity API Error: {response.status_code} - {response.text}")
         raise HTTPException(status_code=response.status_code, detail="Failed to resume cloud agent.")

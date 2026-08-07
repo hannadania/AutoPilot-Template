@@ -27,8 +27,9 @@ AUDIT SYSTEM:
 import io
 import logging
 import os
+from app.routers import workbench
+from app.routers import policies  # Ensure policies is imported here as well!
 
-from app.routers import policies
 
 
 from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile
@@ -78,6 +79,25 @@ app = FastAPI(
     redoc_url=f"{BASE_PATH}/api/redoc",
     openapi_url=f"{BASE_PATH}/api/openapi.json",
 )
+
+
+
+
+@app.on_event("startup")
+def debug_print_routes():
+    print("🔍 ========================================== 🔍")
+    print("🔍 ALL REGISTERED FASTAPI ROUTES:")
+    for route in app.routes:
+        if hasattr(route, "path") and hasattr(route, "methods"):
+            print(f"   📍 Path: {route.path} | Methods: {list(route.methods)}")
+        elif hasattr(route, "path"):
+            print(f"   📍 Mount/Path: {route.path}")
+    print("🔍 ========================================== 🔍")
+
+
+
+
+
 
 # =============================================================================
 # MIDDLEWARE CONFIGURATION
@@ -137,6 +157,11 @@ def get_storage_dependency() -> StorageBackend:
         return LocalStorage(path)
 
 
+
+
+
+
+
 # =============================================================================
 # INCLUDE ROUTERS
 # =============================================================================
@@ -158,6 +183,32 @@ api_router.include_router(items_router)
 
 # Authorization pattern examples
 api_router.include_router(examples_router)
+
+# --- Mount AI Policies (Protected - requires frontend session) ---
+api_router.include_router(policies.router)
+
+# --- Mount AI Insights (Protected - uncomment when you build it!) ---
+# api_router.include_router(insights.router)  
+
+# Register the protected main api_router on the main FastAPI application instance (app)
+app.include_router(api_router)
+app.include_router(policies.router)
+app.include_router(policies.ai_router)
+
+
+
+
+
+# =============================================================================
+# PUBLIC SYSTEM WEBHOOKS (Mounted directly on app to bypass verify_access)
+# =============================================================================
+# This sits OUTSIDE api_router so Supervity can send webhook payloads without a login token!
+app.include_router(workbench.router)
+
+
+
+
+
 
 
 # =============================================================================
