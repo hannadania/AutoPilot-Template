@@ -173,10 +173,26 @@ app.include_router(data_manager_router)
 # 🟢 RESTORE AND MOUNT WORKBENCH ROUTER!
 app.include_router(workbench_router)
 
+app.include_router(policies_router, prefix="/api/policies")
+app.include_router(policies_router, prefix="/api/ai/policies")
+
+
 # =============================================================================
 # ROOT ENDPOINTS
 # =============================================================================
 @app.get("/")
+
+@app.get("/api")
+@app.get("/api/")
+async def api_base_handshake():
+    print("📡 [SUPERVITY] Base handshake ping received on /api!")
+    return {
+        "status": "ok",
+        "message": "AutoPilot Command Center API is live and healthy!"
+    }
+
+
+
 async def root():
     return {
         "name": "AutoPilot API",

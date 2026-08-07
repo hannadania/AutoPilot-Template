@@ -6,7 +6,9 @@ from typing import Dict, Any
 from app.core.database import get_db
 
 # (Ensure your router prefix matches what the modal is hitting)
-router = APIRouter(prefix="/api/ai/policies", tags=["AI Policies"])
+#router = APIRouter(prefix="/api/ai/policies", tags=["AI Policies"])
+router = APIRouter(tags=["AI Policies"])
+
 
 @router.patch("/{policy_id}")
 @router.patch("/{policy_id}/")
