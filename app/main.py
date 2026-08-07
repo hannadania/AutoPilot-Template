@@ -24,12 +24,15 @@ AUDIT SYSTEM:
 - See app/models/audit.py for full documentation
 """
 
+
 import io
 import logging
 import os
-from app.routers import workbench
-from app.routers import policies  # Ensure policies is imported here as well!
 
+# --- IMPORT WORKBENCH, POLICIES, AND INSIGHTS ROUTERS ---
+from app.routers import workbench
+from app.routers import policies
+from app.routers import insights  # <--- ADD THIS LINE HERE!
 
 
 from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile
@@ -49,7 +52,12 @@ from .routers import (
     policies, # The one we added earlier
     workbench # <--- ADD THIS HERE
 )
+
 from .security import get_current_user, verify_access
+
+
+
+
 
 log = logging.getLogger(__name__)
 
@@ -194,6 +202,7 @@ api_router.include_router(policies.router)
 app.include_router(api_router)
 app.include_router(policies.router)
 app.include_router(policies.ai_router)
+app.include_router(insights.router)
 
 
 
