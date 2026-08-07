@@ -22,10 +22,17 @@ from .routers import (
 from .security import get_current_user, verify_access
 
 # 📡 IMPORT NEW LIVE CHANNELS AND SYSTEMS OF RECORD (Using safe relative paths)
-from .routers.policies import router as policies_router, ai_router as policies_ai_router
+from .routers.policies import router as policies_router
 from .routers.insights import router as insights_router
 from .routers.chat import router as chat_router
 from .routers.data_manager import router as data_manager_router
+
+
+# 🟢 RESTORE WORKBENCH ROUTER HERE!
+from .routers.workbench import router as workbench_router
+
+
+
 
 log = logging.getLogger(__name__)
 
@@ -159,10 +166,12 @@ app.include_router(api_router)
 # MOUNT DYNAMIC ROUND 2 ROUTERS (Safely mounted to the fully defined app!)
 # =============================================================================
 app.include_router(policies_router)
-app.include_router(policies_ai_router)
 app.include_router(insights_router)
 app.include_router(chat_router)
 app.include_router(data_manager_router)
+
+# 🟢 RESTORE AND MOUNT WORKBENCH ROUTER!
+app.include_router(workbench_router)
 
 # =============================================================================
 # ROOT ENDPOINTS

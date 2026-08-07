@@ -52,6 +52,7 @@ export default function AIInsightsPage() {
   const [actions, setActions] = useState<ActionItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false) // 🟢 New state for success alert!
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -82,12 +83,19 @@ export default function AIInsightsPage() {
   const handleAnalyze = async () => {
     setIsAnalyzing(true)
     setError(null)
+    setShowSuccess(false) // Reset success alert
     try {
       const response = await apiClient.post<InsightsResponse>('/api/insights/analyze', {})
       if (response && response.status === 'success') {
         setInsights(response.insights || [])
         setPatterns(response.patterns || [])
         setActions(response.actions || [])
+        setShowSuccess(true) // 🟢 Trigger success banner!
+        
+        // Auto-dismiss the success banner after 4 seconds
+        setTimeout(() => {
+          setShowSuccess(false)
+        }, 4000)
       } else {
         setError('Failed to refresh data analysis.')
       }
@@ -159,6 +167,24 @@ export default function AIInsightsPage() {
           )}
         </Button>
       </div>
+
+      {/* 🟢 Beautiful Success Banner */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <Card className="border-emerald-200 bg-emerald-50/80 text-emerald-800 shadow-sm">
+              <CardContent className="p-4 flex items-center gap-2">
+                <Icons.checkCircle className="h-5 w-5 text-emerald-600 animate-bounce" />
+                <span className="font-semibold">Analysis complete: Database scanned successfully!</span>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {error && (
         <Card className="border-red-200 bg-red-50 text-red-700">
@@ -277,9 +303,11 @@ export default function AIInsightsPage() {
             )}
 
             {activeTab === 'patterns' && (
-              <motion.div variants={itemVariants} className="space-y-4">
-                <PatternCluster patterns={patterns} />
-              </motion.div>
+              <div className="grid gap-4">
+                <motion.div variants={itemVariants}>
+                  <PatternCluster patterns={patterns} />
+                </motion.div>
+              </div>
             )}
 
             {activeTab === 'actions' && (
