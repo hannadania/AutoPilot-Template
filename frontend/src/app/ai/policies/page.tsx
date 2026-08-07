@@ -13,6 +13,7 @@ import { PolicyEditModal } from '@/components/ai/policies/PolicyEditModal'
 import { CreateWithAI } from '@/components/ai/policies/CreateWithAI'
 import { PermissionMatrixTab } from '@/components/ai/policies/PermissionMatrixTab'
 import { StructuredBuilder } from '@/components/ai/policies/StructuredBuilder'
+import { apiClient } from '@/lib/api-client'
 
 // ============================================================================
 // Types
@@ -122,45 +123,56 @@ export default function AIPoliciesPage() {
     }
   }, [])
 
-  const handlePolicyCreate = async (policyData: {
-    name: string
-    description: string
-    naturalLanguage: string
-    policyType: 'logical' | 'natural_language'
-    dsl: unknown
-    refinedInstruction: string | null
-    entityName: string | null
-    tags: string[]
-    priority: number
-  }) => {
-    try {
-      const res = await fetch('http://localhost:8001/api/policies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: policyData.name,
-          description: policyData.description,
-          natural_language: policyData.naturalLanguage,
-          policy_type: policyData.policyType,
-          dsl: policyData.dsl,
-          refined_instruction: policyData.refinedInstruction,
-          entity_name: policyData.entityName,
-          tags: policyData.tags,
-          priority: policyData.priority,
-          is_active: true
-        }),
-      })
 
-      if (res.ok) {
-        setActiveTab('policies');
-        await loadPolicies();
-      } else {
-        console.error('Failed to save policy to backend');
-      }
-    } catch (error) {
-      console.error('Error saving policy:', error)
-    }
+
+
+
+
+
+
+
+
+
+
+  const handlePolicyCreate = async (policyData: {
+  name: string
+  description: string
+  naturalLanguage: string
+  policyType: 'logical' | 'natural_language'
+  dsl: unknown
+  refinedInstruction: string | null
+  entityName: string | null
+  tags: string[]
+  priority: number
+}) => {
+  try {
+    // 📡 1. Use the built-in apiClient with the direct trailing slash path!
+    const res = await apiClient.post('/api/policies/', {
+      name: policyData.name,
+      description: policyData.description,
+      natural_language: policyData.naturalLanguage,
+      policy_type: policyData.policyType,
+      dsl: policyData.dsl,
+      refined_instruction: policyData.refinedInstruction,
+      entity_name: policyData.entityName,
+      tags: policyData.tags,
+      priority: policyData.priority,
+      is_active: true
+    })
+
+    // 🔄 2. Upon success, switch tabs and refresh your Supabase policies list!
+    setActiveTab('policies')
+    await loadPolicies()
+
+  } catch (error) {
+    console.error('Error saving policy to Supabase:', error)
   }
+}
+
+
+
+
+
 
   const deletePolicy = async (id: string) => {
     try {
@@ -177,6 +189,10 @@ export default function AIPoliciesPage() {
     }
   }
 
+
+
+
+  
   // ============================================================================
   // Filtering & Sorting
   // ============================================================================
