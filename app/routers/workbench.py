@@ -84,7 +84,8 @@ async def get_pending_approvals(db: Session = Depends(get_db)):
     return {"tasks": [dict(row) for row in result]}
 
 
-@router.put("/webhooks/supervity/workbench/{item_number}/approve")
+@router.put("/api/workbench/webhooks/supervity/workbench/{item_number}/approve")
+#/webhooks/supervity/workbench/{item_number}/approve
 async def approve_task(item_number: str, db: Session = Depends(get_db)):
     """
     Triggers when you click 'Approve Action' on your Next.js frontend dashboard.
