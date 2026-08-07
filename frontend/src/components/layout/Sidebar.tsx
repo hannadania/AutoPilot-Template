@@ -75,6 +75,7 @@ const navItems: NavSection[] = [
   {
     title: 'System',
     items: [
+      { href: '/ai/data-manager', label: 'Data Manager', icon: Icons.activity }, // 🟢 Live Data Manager Link!
       { href: '/settings', label: 'Settings', icon: Icons.settings },
     ],
   },

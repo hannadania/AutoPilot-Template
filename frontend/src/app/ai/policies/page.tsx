@@ -133,8 +133,14 @@ export default function AIPoliciesPage() {
 
 
 
+// 1. Add this interface right above your page component (or inside your file)
+interface PolicyCreateResponse {
+  status: string
+  policy?: unknown
+}
 
-  const handlePolicyCreate = async (policyData: {
+// 2. Update your save function to use it:
+const handlePolicyCreate = async (policyData: {
   name: string
   description: string
   naturalLanguage: string
@@ -146,8 +152,8 @@ export default function AIPoliciesPage() {
   priority: number
 }) => {
   try {
-    // 📡 1. Use the built-in apiClient with the direct trailing slash path!
-    const res = await apiClient.post('/api/policies/', {
+    // 📡 Use the PolicyCreateResponse interface we defined above!
+    const res = await apiClient.post<PolicyCreateResponse>('/api/policies/', {
       name: policyData.name,
       description: policyData.description,
       natural_language: policyData.naturalLanguage,
@@ -160,14 +166,19 @@ export default function AIPoliciesPage() {
       is_active: true
     })
 
-    // 🔄 2. Upon success, switch tabs and refresh your Supabase policies list!
-    setActiveTab('policies')
-    await loadPolicies()
-
+    // 🎉 Now we use 'res' so the compiler warning disappears!
+    if (res && res.status === 'success') {
+      setActiveTab('policies')
+      await loadPolicies()
+    }
   } catch (error) {
-    console.error('Error saving policy to Supabase:', error)
+    console.error('Error saving policy:', error)
   }
 }
+
+
+
+
 
 
 

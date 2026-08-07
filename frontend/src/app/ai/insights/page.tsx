@@ -1,51 +1,75 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { Icons } from '@/components/ui/icons'
+import { InsightCard, type Insight } from '@/components/ai/insights/InsightCard'
+import { PatternCluster, type Pattern } from '@/components/ai/insights/PatternCluster'
+import { ActionCard, type ActionItem } from '@/components/ai/insights/ActionCard'
+import { apiClient } from '@/lib/api-client'
 
-interface BackendInsightsResponse {
+// Tab configuration
+interface Tab {
+  id: string
+  label: string
+  icon: React.ElementType
+}
+
+const tabs: Tab[] = [
+  { id: 'summary', label: 'Summary', icon: Icons.activity },
+  { id: 'patterns', label: 'Patterns', icon: Icons.layers },
+  { id: 'actions', label: 'Actions', icon: Icons.zap },
+]
+
+interface InsightsResponse {
   status: string
-  kpis: {
-    active_pos: number
-    value_at_risk: string
-    delayed_shipments: number
-    sole_sources: number
-  }
-  insights: {
-    single_source_exposure: Array<{ id: number; name: string; country: string; x_tier: string }>
-    supplier_delay_patterns: Array<{ supplier_name: string; delay_count: number; delay_reason: string }>
-    tier_dependency_cascades: Array<{ id: number; component: string; criticality: string; parent_supplier: string; dependent_supplier: string }>
-    demand_anomalies: Array<{ item_number: string; forecast_qty: number; actual_demand: number; channel: string; surge_qty: number }>
-    expiring_contracts: Array<{ contract_number: string; contract_name: string; end_date: string; status: string }>
-  }
+  insights: Insight[]
+  patterns: Pattern[]
+  actions: ActionItem[]
+}
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
 }
 
 export default function AIInsightsPage() {
-  const [data, setData] = useState<BackendInsightsResponse | null>(null)
+  const [activeTab, setActiveTab] = useState('summary')
+  const [insights, setInsights] = useState<Insight[]>([])
+  const [patterns, setPatterns] = useState<Pattern[]>([])
+  const [actions, setActions] = useState<ActionItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [debugLog, setDebugLog] = useState<string>('Initializing fetch...')
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
   const fetchInsights = useCallback(async () => {
     setIsLoading(true)
-    const targetUrl = 'http://localhost:8001/api/insights/summary'
-    setDebugLog(`🔍 DEBUG: Fetching from ${targetUrl}...`)
-    
+    setError(null)
     try {
-      const res = await fetch(targetUrl)
-      setDebugLog(prev => prev + `\n📥 Response Status: ${res.status} ${res.statusText}`)
-      
-      if (res.ok) {
-        const payload: BackendInsightsResponse = await res.json()
-        setData(payload)
-        setDebugLog(prev => prev + `\n✅ SUCCESS: Payload received successfully.`)
+      const response = await apiClient.get<InsightsResponse>('/api/insights/')
+      if (response && response.status === 'success') {
+        setInsights(response.insights || [])
+        setPatterns(response.patterns || [])
+        setActions(response.actions || [])
       } else {
-        const errText = await res.text()
-        setDebugLog(prev => prev + `\n❌ ERROR: Server returned ${res.status}. Details: ${errText}`)
+        setError('Failed to fetch real-time insights.')
       }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err)
-      setDebugLog(prev => prev + `\n🚨 EXCEPTION THROWN: ${errorMessage}`)
+    } catch (err) {
+      console.error('Error fetching insights:', err)
+      setError('Could not connect to the insights engine.')
     } finally {
       setIsLoading(false)
     }
@@ -55,80 +79,225 @@ export default function AIInsightsPage() {
     fetchInsights()
   }, [fetchInsights])
 
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true)
+    setError(null)
+    try {
+      const response = await apiClient.post<InsightsResponse>('/api/insights/analyze', {})
+      if (response && response.status === 'success') {
+        setInsights(response.insights || [])
+        setPatterns(response.patterns || [])
+        setActions(response.actions || [])
+      } else {
+        setError('Failed to refresh data analysis.')
+      }
+    } catch (err) {
+      console.error('Error running analysis:', err)
+      setError('Could not execute the analysis engine.')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  const handleInsightAction = useCallback(async (insight: Insight) => {
+    switch (insight.action_type) {
+      case 'create_policy':
+        router.push('/ai/policies?tab=create-with-ai')
+        break
+      case 'investigate':
+      case 'review_duplicate':
+        router.push('/workbench')
+        break
+      default:
+        break
+    }
+  }, [router])
+
+  const handleDismissInsight = useCallback(async (id: string) => {
+    setInsights(prev => prev.filter(i => i.id !== id))
+  }, [])
+
+  const handleApplyAction = useCallback(async (action: ActionItem) => {
+    switch (action.action_type) {
+      case 'create_policy':
+        router.push('/ai/policies?tab=create-with-ai')
+        break
+      case 'investigate':
+      case 'review_transaction':
+        router.push('/workbench')
+        break
+      default:
+        break
+    }
+  }, [router])
+
+  const criticalCount = insights.filter(i => i.severity === 'critical').length
+  const warningCount = insights.filter(i => i.severity === 'warning').length
+  const infoCount = insights.filter(i => i.severity === 'info').length
+
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto text-slate-900">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">AI Supply Chain Insights</h1>
-          <p className="mt-1 text-sm text-slate-500">Live neural audit computed directly from Supabase.</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-brand-navy">AI Insights</h1>
+          <p className="text-muted-foreground">
+            AI-powered analysis of your data. Discover patterns, anomalies, and optimization opportunities.
+          </p>
         </div>
-        <Button onClick={fetchInsights}>Refresh Analytics</Button>
+        <Button onClick={handleAnalyze} disabled={isAnalyzing} variant="gradient">
+          {isAnalyzing ? (
+            <>
+              <Icons.loader className="mr-2 h-4 w-4 animate-spin" />
+              Analyzing...
+            </>
+          ) : (
+            <>
+              <Icons.sparkles className="mr-2 h-4 w-4" />
+              Run Analysis
+            </>
+          )}
+        </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Card><CardContent className="py-6"><p className="text-2xl font-bold">{data?.kpis.active_pos || 0}</p><p className="text-xs text-muted-foreground">Active POs</p></CardContent></Card>
-        <Card><CardContent className="py-6"><p className="text-2xl font-bold text-red-600">{data?.kpis.value_at_risk || 'RM 0.00'}</p><p className="text-xs text-muted-foreground">Value at Risk</p></CardContent></Card>
-        <Card><CardContent className="py-6"><p className="text-2xl font-bold">{data?.kpis.delayed_shipments || 0}</p><p className="text-xs text-muted-foreground">Delayed Shipments</p></CardContent></Card>
-        <Card><CardContent className="py-6"><p className="text-2xl font-bold">{data?.kpis.sole_sources || 0}</p><p className="text-xs text-muted-foreground">Sole-Source Risks</p></CardContent></Card>
-      </div>
+      {error && (
+        <Card className="border-red-200 bg-red-50 text-red-700">
+          <CardContent className="p-4 flex items-center gap-2">
+            <Icons.alertCircle className="h-5 w-5" />
+            <span>{error}</span>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Data Breakdown Cards */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Single Source Exposure</CardTitle>
-            <CardDescription>Suppliers with no alternative sourcing.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {isLoading ? (
-              <p className="text-sm text-slate-500">Loading...</p>
-            ) : data?.insights.single_source_exposure.length === 0 ? (
-              <p className="text-sm text-slate-500">No sole-source exposures found.</p>
-            ) : (
-              data?.insights.single_source_exposure.map((item) => (
-                <div key={item.id} className="flex justify-between py-2 border-b text-sm">
-                  <span className="font-semibold">{item.name} ({item.country})</span>
-                  <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">Tier {item.x_tier}</span>
-                </div>
-              ))
-            )}
+      {/* Stats Cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="border-red-100 bg-red-50/50">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="rounded-lg bg-red-100 p-3 text-red-600">
+              <Icons.alertCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-red-700">{criticalCount}</div>
+              <p className="text-sm font-medium text-red-600/80">Critical Anomalies</p>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Supplier Delay Patterns</CardTitle>
-            <CardDescription>Recurring delivery bottlenecks.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {isLoading ? (
-              <p className="text-sm text-slate-500">Loading...</p>
-            ) : data?.insights.supplier_delay_patterns.length === 0 ? (
-              <p className="text-sm text-slate-500">No delay patterns recorded.</p>
-            ) : (
-              data?.insights.supplier_delay_patterns.map((item, index) => (
-                <div key={index} className="flex justify-between py-2 border-b text-sm">
-                  <div>
-                    <p className="font-semibold">{item.supplier_name}</p>
-                    <p className="text-xs text-slate-500">Reason: {item.delay_reason || 'Unspecified'}</p>
-                  </div>
-                  <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded h-fit">{item.delay_count} delays</span>
-                </div>
-              ))
-            )}
+        <Card className="border-amber-100 bg-amber-50/50">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="rounded-lg bg-amber-100 p-3 text-amber-600">
+              <Icons.alertTriangle className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-amber-700">{warningCount}</div>
+              <p className="text-sm font-medium text-amber-600/80">Active Warnings</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-brand-navy/10 bg-brand-navy/5">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="rounded-lg bg-brand-navy/10 p-3 text-brand-navy">
+              <Icons.sparkles className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-brand-navy">{infoCount + patterns.length}</div>
+              <p className="text-sm font-medium text-brand-navy/80">Recommendations</p>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Debug Box */}
-      <div className="rounded-xl border border-slate-300 bg-slate-950 p-4 text-emerald-400 font-mono text-xs shadow-inner">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2 text-slate-400 font-bold uppercase tracking-wider">
-          <span>🛠️ Live API Connection Debugger</span>
-          <span className="text-[10px] text-emerald-500">Target: http://localhost:8001/api/insights/summary</span>
-        </div>
-        <pre className="whitespace-pre-wrap overflow-x-auto">{debugLog}</pre>
+      {/* Tab Navigation */}
+      <div className="flex border-b border-border/40 gap-2">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'relative flex items-center gap-2 rounded-lg px-4 py-2.5',
+                'text-sm font-medium transition-all duration-200',
+                isActive ? 'text-white' : 'text-muted-foreground hover:text-foreground hover:bg-white/50'
+              )}
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="active-insight-tab"
+                  className="absolute inset-0 bg-brand-navy rounded-lg -z-10"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          )
+        })}
       </div>
+
+      {/* Tab Content */}
+      {isLoading ? (
+        <div className="flex h-[300px] items-center justify-center">
+          <Icons.loader className="h-8 w-8 animate-spin text-brand-navy" />
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="space-y-4"
+          >
+            {activeTab === 'summary' && (
+              <div className="grid gap-4">
+                {insights.length === 0 ? (
+                  <Card className="border-dashed p-12 text-center">
+                    <CardContent className="flex flex-col items-center justify-center">
+                      <Icons.sparkles className="h-10 w-10 text-muted-foreground mb-4" />
+                      <h3 className="font-semibold text-lg text-brand-navy">No live insights yet</h3>
+                      <p className="text-muted-foreground mb-4">Run an analysis to discover real-time patterns.</p>
+                      <Button onClick={handleAnalyze}>Generate Insights</Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  insights.map((insight) => (
+                    <motion.div key={insight.id} variants={itemVariants}>
+                      <InsightCard
+                        insight={insight}
+                        onAction={handleInsightAction}
+                        onDismiss={handleDismissInsight}
+                      />
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activeTab === 'patterns' && (
+              <motion.div variants={itemVariants} className="space-y-4">
+                <PatternCluster patterns={patterns} />
+              </motion.div>
+            )}
+
+            {activeTab === 'actions' && (
+              <div className="grid gap-4">
+                {actions.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-12">No actions recommended at this time.</p>
+                ) : (
+                  actions.map((action, idx) => (
+                    <motion.div key={idx} variants={itemVariants}>
+                      <ActionCard action={action} onApply={handleApplyAction} />
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      )}
     </div>
   )
 }
