@@ -4,19 +4,20 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import httpx
 import os
-from app.models import PendingTask  # (or wherever your models are defined)
+from app.models import PendingTask
 
-# Corrected database import path from your template
+# Database dependency
 from app.core.database import get_db
 
-router = APIRouter(tags=["Workbench"])
+router = APIRouter(prefix="/api/workbench", tags=["Workbench"])
+webhooks_router = APIRouter(tags=["Webhooks"])
 
-# We fetch your Supervity API Key from your local environment file
+# Fetch your Supervity API Key from environment variables
 SUPERVITY_API_KEY = os.getenv("SUPERVITY_API_KEY", "YOUR_SUPERVITY_API_KEY")
 
-# This matches the dynamic payload Supervity will send to your laptop
+# Payload model for Supervity webhooks
 class SupervityApprovalPayload(BaseModel):
-    run_id: str              # Unique system ID of the paused run
+    run_id: str
     operator_name: str
     item_number: str
     proposed_action: str
@@ -24,18 +25,15 @@ class SupervityApprovalPayload(BaseModel):
     jira_ticket_url: str
 
 
-@router.post("/webhooks/supervity/workbench")
-async def catch_ai_approval(
-    payload: SupervityApprovalPayload,
-    db: Session = Depends(get_db)
-):
+@webhooks_router.post("/api/webhooks/supervity/workbench")
+async def catch_ai_approval(payload: SupervityApprovalPayload, db: Session = Depends(get_db)):
     """
     Catches human-in-the-loop approval requests from Supervity Auto
     and inserts them into your local PostgreSQL database.
     """
     print(f"🚨 EXCEPTION CAUGHT: {payload.item_number} from {payload.operator_name} (Run: {payload.run_id})")
     
-    # Hanna's Dynamic Table Trick: Self-heal the database table if it doesn't exist
+    # Self-heal the database table if it doesn't exist
     setup_query = text("""
         CREATE TABLE IF NOT EXISTS pending_tasks (
             id SERIAL PRIMARY KEY,
@@ -74,10 +72,11 @@ async def catch_ai_approval(
     }
 
 
-@router.get("/api/workbench/tasks")
+@router.get("/tasks")
 async def get_pending_approvals(db: Session = Depends(get_db)):
     """
     Called by your Next.js UI to display the active queue of exceptions.
+    (Resolves to /api/workbench/tasks)
     """
     select_query = text("SELECT * FROM pending_tasks WHERE status = 'PENDING' ORDER BY created_at DESC")
     result = db.execute(select_query).mappings().all()
@@ -85,12 +84,12 @@ async def get_pending_approvals(db: Session = Depends(get_db)):
     return {"tasks": [dict(row) for row in result]}
 
 
-
-@router.put("/api/webhooks/supervity/workbench/{item_number}/approve")
+@router.put("/webhooks/supervity/workbench/{item_number}/approve")
 async def approve_task(item_number: str, db: Session = Depends(get_db)):
     """
     Triggers when you click 'Approve Action' on your Next.js frontend dashboard.
     Accepts the item_number SKU string, finds the run_id, and unpauses Supervity!
+    (Resolves to /api/workbench/webhooks/supervity/workbench/{item_number}/approve)
     """
     # 1. Pull the run_id for this SKU from your database
     get_query = text("SELECT run_id FROM pending_tasks WHERE item_number = :item AND status = 'PENDING' LIMIT 1")
@@ -130,23 +129,4 @@ async def approve_task(item_number: str, db: Session = Depends(get_db)):
     return {
         "status": "success",
         "message": f"Run {run_id} successfully authorized to proceed."
-    }
-
-
-
-
-
-
-    if response.status_code != 200:
-        print(f"❌ Supervity API Error: {response.status_code} - {response.text}")
-        raise HTTPException(status_code=response.status_code, detail="Failed to resume cloud agent.")
-
-    # 4. Update your local database status to reflect the approval
-    update_query = text("UPDATE pending_tasks SET status = 'APPROVED' WHERE item_number = :item")
-    db.execute(update_query, {"item": item_number})
-    db.commit()
-
-    return {
-        "status": "success", 
-        "message": f"Cloud agent for {item_number} has been remotely resumed."
     }

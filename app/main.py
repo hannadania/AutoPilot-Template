@@ -20,6 +20,10 @@ from .routers import (
     items_router,
 )
 from .security import get_current_user, verify_access
+from app.routers.workbench import router as workbench_router, webhooks_router
+
+
+
 
 # 📡 IMPORT NEW LIVE CHANNELS AND SYSTEMS OF RECORD (Using safe relative paths)
 from .routers.policies import router as policies_router
@@ -30,6 +34,11 @@ from .routers.data_manager import router as data_manager_router
 
 # 🟢 RESTORE WORKBENCH ROUTER HERE!
 from .routers.workbench import router as workbench_router
+
+
+
+from fastapi import FastAPI
+app = FastAPI()
 
 
 
@@ -175,13 +184,14 @@ app.include_router(workbench_router)
 
 app.include_router(policies_router, prefix="/api/policies")
 app.include_router(policies_router, prefix="/api/ai/policies")
+app.include_router(workbench_router)
+app.include_router(webhooks_router)  
 
 
 # =============================================================================
 # ROOT ENDPOINTS
 # =============================================================================
 @app.get("/")
-
 @app.get("/api")
 @app.get("/api/")
 async def api_base_handshake():
