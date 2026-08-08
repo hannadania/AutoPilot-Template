@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
+from app.routers import dashboard
 from .authz import AuthzEngine
 from .core.storage import GCSStorage, LocalStorage, StorageBackend
 from .middleware import AuditMiddleware
@@ -31,7 +32,8 @@ from .routers.data_manager import router as data_manager_router
 # 🟢 RESTORE WORKBENCH ROUTER HERE!
 from .routers.workbench import router as workbench_router
 
-
+# 📡 IMPORT THE NEW WEBHOOKS ROUTER
+from .routers.webhooks import router as webhooks_router
 
 
 log = logging.getLogger(__name__)
@@ -105,6 +107,10 @@ api_router.include_router(admin_router)
 api_router.include_router(audit_router)
 api_router.include_router(items_router)
 api_router.include_router(examples_router)
+
+app.include_router(dashboard.router, prefix="/api")
+api_router.include_router(workbench_router, prefix="/workbench", tags=["Workbench"])
+api_router.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks"])
 
 # =============================================================================
 # FILE STORAGE ENDPOINTS
