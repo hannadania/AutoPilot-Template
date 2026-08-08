@@ -125,7 +125,7 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
         is_active = payload.get("is_active", True)
 
 
-        
+
 
 
 
@@ -166,6 +166,7 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
 # ==========================================
 # 3. UPDATE POLICY (PATCH)
 # ==========================================
+
 @router.patch("/api/policies/{policy_id}")
 @router.patch("/api/policies/{policy_id}/")
 @router.patch("/api/ai/policies/{policy_id}")
@@ -184,12 +185,40 @@ async def update_policy(
         if not existing_policy:
             raise HTTPException(status_code=404, detail=f"Policy {policy_id} not found.")
 
+        # 1. Start with standard flat root-level fields
         update_fields = {}
         for key, val in payload.items():
             if key in ["id", "updated_at"] or val is None:
                 continue
             if key in ["name", "category", "value", "is_active"]:
                 update_fields[key] = val
+
+        # 2. Extract category and value safely from frontend's nested DSL
+        dsl = payload.get("dsl")
+        if dsl and isinstance(dsl, dict):
+            conditions_list = dsl.get("conditions")
+            if isinstance(conditions_list, list) and len(conditions_list) > 0:
+                first_condition = conditions_list[0] # ✅ Safely grab the first dictionary inside the list
+                if isinstance(first_condition, dict):
+                    if "value" in first_condition:
+                        update_fields["value"] = first_condition["value"] # Keep raw type first
+                    if "field" in first_condition:
+                        update_fields["category"] = str(first_condition["field"])
+
+        # 3. ✅ Ensure "value" is stored as valid JSON to support strings, booleans, and numbers
+        if "value" in update_fields:
+            import json
+            raw_val = update_fields["value"]
+            if isinstance(raw_val, str):
+                try:
+                    # If it's already a valid JSON string (e.g. '"high"'), keep it
+                    json.loads(raw_val)
+                except Exception:
+                    # Otherwise, serialize it so it becomes valid JSON (e.g. 'high' -> '"high"')
+                    update_fields["value"] = json.dumps(raw_val)
+            else:
+                # If it's an integer, float, or boolean, serialize it safely to JSON format
+                update_fields["value"] = json.dumps(raw_val)
 
         if not update_fields:
             raise HTTPException(status_code=400, detail="No valid fields provided for update.")
@@ -216,6 +245,9 @@ async def update_policy(
         db.rollback()
         print(f"❌ [POLICIES API ERROR] Failed to update policy: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 # ==========================================
 # 4. AI POLICY EVALUATOR & ANALYZER (POST)
