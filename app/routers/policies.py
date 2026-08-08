@@ -68,6 +68,8 @@ async def list_policies(db: Session = Depends(get_db)):
         print(f"❌ [POLICIES API ERROR] Failed to list policies: {str(e)}")
         return {"policies": []}
 
+
+
 # ==========================================
 # 2. CREATE NEW POLICY (POST)
 # ==========================================
@@ -75,7 +77,6 @@ async def list_policies(db: Session = Depends(get_db)):
 @router.post("/api/policies/")
 @router.post("/api/ai/policies")
 @router.post("/api/ai/policies/")
-
 async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
     print(f"\n📥 [POLICIES API] POST request received to CREATE a new policy: {payload}")
     try:
@@ -96,12 +97,18 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
         name = payload.get("name", "New AI Guardrail")
         category = payload.get("category", "custom")
         
-        # Safely convert DSL values to a string to store in PostgreSQL 'value' column
+        # 🎯 FIX: Safely convert DSL values to a string to store in PostgreSQL 'value' column
         value = str(payload.get("value", ""))
         if not value:
             dsl = payload.get("dsl")
             if dsl and isinstance(dsl, dict) and dsl.get("conditions"):
-                value = str(dsl["conditions"].get("value", "5000"))
+                conditions_list = dsl.get("conditions")
+                if isinstance(conditions_list, list) and len(conditions_list) > 0:
+                    # Grab the first dict item from the list using [0]
+                    first_condition = conditions_list[0]
+                    value = str(first_condition.get("value", "5000"))
+                else:
+                    value = "5000"
             else:
                 value = "5000"
                 
@@ -131,12 +138,17 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
         ).mappings().first()
         
         merged_record = {**payload, **dict(new_record)}
-        return format_policy_for_frontend(merged_record)
+             # 🎯 Wrap the formatted policy to perfectly match the frontend's PolicyCreateResponse interface!
+        return {
+            "status": "success",
+            "policy": format_policy_for_frontend(merged_record)
+        }
         
     except Exception as e:
         db.rollback()
         print(f"❌ [POLICIES API ERROR] Failed to create policy: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ==========================================
 # 3. UPDATE POLICY (PATCH)
