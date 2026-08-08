@@ -76,8 +76,16 @@ export default function AIPoliciesPage() {
         }
       });
       
+
+
       const data = await res.json();
       setPolicies(data.policies || []);
+
+
+
+
+
+
     } catch (error) {
       console.error("Failed to load policies", error);
     } finally {
@@ -166,11 +174,25 @@ const handlePolicyCreate = async (policyData: {
       is_active: true
     })
 
-    // 🎉 Now we use 'res' so the compiler warning disappears!
-    if (res && res.status === 'success') {
+
+
+
+
+    // 🎯 We cast to safe temporary types so ESLint doesn't throw "any" errors!
+    const responseStatus = (res as { status?: string }).status
+    const responseId = (res as { id?: number | string }).id
+
+    // ✅ Succeeds if we get "success" OR a valid saved ID from the database!
+    if (res && (responseStatus === 'success' || responseId)) {
       setActiveTab('policies')
       await loadPolicies()
     }
+
+
+    
+
+
+    
   } catch (error) {
     console.error('Error saving policy:', error)
   }

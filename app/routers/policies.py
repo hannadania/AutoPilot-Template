@@ -95,17 +95,42 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
         # 2. Extract values from frontend payload and align with DB columns
         name = payload.get("name", "New AI Guardrail")
         category = payload.get("category", "custom")
+
+
+
+
         
-        # Safely convert DSL values to a string to store in PostgreSQL 'value' column
-        value = str(payload.get("value", ""))
+        # 1. Start with the root value if it exists
+        value = str(payload.get("value") or "")
+        category = payload.get("category") or "custom"
+        
+        # 2. If value is missing, extract it safely from the nested DSL conditions
+        dsl = payload.get("dsl")
+        if dsl and isinstance(dsl, dict):
+            conditions_list = dsl.get("conditions")
+            # Make sure conditions is a non-empty list
+            if isinstance(conditions_list, list) and len(conditions_list) > 0:
+                first_condition = conditions_list[0]
+                # Make sure the item inside the list is a dictionary
+                if isinstance(first_condition, dict):
+                    if not value:
+                        value = str(first_condition.get("value", "5000"))
+                    if category == "custom":
+                        category = first_condition.get("field", "custom")
+
+        # 3. Final fallback if value is still empty
         if not value:
-            dsl = payload.get("dsl")
-            if dsl and isinstance(dsl, dict) and dsl.get("conditions"):
-                value = str(dsl["conditions"].get("value", "5000"))
-            else:
-                value = "5000"
-                
+            value = "5000"
+            
         is_active = payload.get("is_active", True)
+
+
+        
+
+
+
+
+
         
         # 3. Insert the new row into 'ai_policies'
         insert_query = text("""
