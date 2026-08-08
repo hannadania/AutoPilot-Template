@@ -293,8 +293,59 @@ function DiagnosticsCard() {
   )
 }
 
+
+
+
+
+
 // Main Dashboard — no auth required, renders directly
+
+
 export default function HomePage() {
+  // 1. Safe default state
+  const [stats, setStats] = useState({
+    active_disruptions: 0,
+    success_rate: '100%',
+    cost_avoided: 'MYR 0.00',
+    total_tasks: 0
+  })
+
+  // 2. Fetch stats with automatic 5-second dynamic polling!
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('http://localhost:8001/api/dashboard/stats')
+        if (res.ok) {
+          const data = await res.json()
+          setStats(data)
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error)
+      }
+    }
+
+    fetchStats()
+    const interval = setInterval(fetchStats, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // 3. 🛡️ TYPE-SAFE PARSERS & CALCULATIONS
+  const flaggedPending = typeof stats?.active_disruptions === 'number' 
+    ? stats.active_disruptions 
+    : 0
+
+  const totalCases = typeof stats?.total_tasks === 'number' 
+    ? stats.total_tasks 
+    : 0
+
+  // Accomplished Cases = Total Cases minus the currently pending disruptions
+  const accomplishedCases = Math.max(0, totalCases - flaggedPending)
+
+  const rawSuccess = stats?.success_rate 
+    ? parseFloat(stats.success_rate) 
+    : 100
+  const successRate = isNaN(rawSuccess) ? 100 : rawSuccess
+
   return (
     <motion.div
       className='space-y-6'
@@ -305,56 +356,59 @@ export default function HomePage() {
       {/* Hero Section */}
       <HeroSection userName='Developer' />
 
-      {/* Stats Grid - Bento style */}
-      <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+      {/* KPI Cards Grid */}
+      <div className='grid grid-span-12 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6'>
+        {/* Card 1: Accomplished Cases */}
         <StatCard
-          title='Total Users'
-          value={10400}
-          icon={Icons.users}
-          trend={{ value: '+12%', positive: true }}
+          key={`accomplished-${accomplishedCases}`}
+          title='Accomplished Cases'
+          value={accomplishedCases}
+          icon={Icons.checkCircle}
+          trend={{ value: '~ Live Supabase', positive: true }}
           colorClass='bg-brand-navy'
           delay={0.1}
         />
+
+        {/* Card 2: Success Rate */}
         <StatCard
-          title='Active Sessions'
-          value={524}
+          key={`success-${successRate}`}
+          title='Success Rate'
+          value={successRate}
+          suffix='%'
           icon={Icons.activity}
-          trend={{ value: '+8%', positive: true }}
+          trend={{ value: '~ Live Supabase', positive: true }}
           colorClass='bg-brand-cornflower'
           delay={0.2}
         />
+
+        {/* Card 3: Total Cases */}
         <StatCard
-          title='Success Rate'
-          value={98}
-          suffix='%'
-          icon={Icons.checkCircle}
-          trend={{ value: '+2%', positive: true }}
+          key={`total-${totalCases}`}
+          title='Total Cases'
+          value={totalCases}
+          icon={Icons.users}
+          trend={{ value: '~ Live Supabase', positive: true }}
           colorClass='bg-brand-purple'
           delay={0.3}
         />
+
+        {/* Card 4: Flagged Pending */}
         <StatCard
-          title='AI Confidence'
-          value={96}
-          suffix='%'
+          key={`pending-${flaggedPending}`}
+          title='Flagged Pending'
+          value={flaggedPending}
           icon={Icons.sparkles}
-          trend={{ value: 'Stable', positive: true }}
+          trend={{ value: '~ Live Supabase', positive: true }}
           colorClass='bg-gradient-to-br from-brand-navy to-brand-purple'
           delay={0.4}
         />
       </div>
 
-      {/* Activity Chart - Full Width */}
-      <motion.div variants={itemVariants}>
-        <ActivityChart className='col-span-12' />
-      </motion.div>
 
-      {/* System Diagnostics */}
-      <motion.div
-        className='grid gap-6 lg:grid-cols-12'
-        variants={itemVariants}
-      >
-        <DiagnosticsCard />
-      </motion.div>
-    </motion.div>
-  )
-}
+
+
+
+      
+    </motion.div> // ✅ Closes the motion.div wrapper!
+  ) // ✅ Closes the return parenthesis!
+} // ✅ Closes the HomePage function!
