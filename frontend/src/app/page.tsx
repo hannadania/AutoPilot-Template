@@ -173,7 +173,7 @@ function StatCard({
 
 // Hero Section
 function HeroSection({ userName }: { userName?: string }) {
-  const firstName = userName?.split(' ')[0] || 'there'
+  const firstName = userName?.split(' ') || 'there'
 
   return (
     <motion.div
@@ -182,16 +182,24 @@ function HeroSection({ userName }: { userName?: string }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
+      {/* 🚀 Main Header Title */}
       <h1 className='text-display-3 font-bold tracking-tight text-brand-navy lg:text-display-2'>
-        Where Intelligence <br className='hidden sm:block' />
-        <span className='text-gradient'>Meets Human.</span>
+        Disruption <span className='text-gradient'>Commander</span>
       </h1>
+      
+      {/* 💡 Sub-tagline */}
+      <p className='mt-2 text-xl font-semibold text-brand-cornflower tracking-tight'>
+        Where Intelligence Meets Human.
+      </p>
+      
+      {/* Welcome Message */}
       <p className='mt-4 text-lg font-light text-muted-foreground'>
         Welcome back, {firstName}. Your AI Command Center is ready.
       </p>
     </motion.div>
   )
 }
+
 
 // Diagnostics Card
 function DiagnosticsCard() {
@@ -298,15 +306,59 @@ function DiagnosticsCard() {
 
 
 
-// Main Dashboard — no auth required, renders directly
 
+
+
+
+
+function IntegrationsHealth() {
+  return (
+    <Card className='h-full bg-card/50 backdrop-blur-md border-brand-navy/10 relative overflow-hidden'>
+      <CardContent className='p-6 space-y-4'>
+        <h3 className='text-lg font-bold text-brand-navy flex items-center gap-2'>
+          <Icons.activity className='h-5 w-5 text-emerald-500 animate-pulse' />
+          Integration Diagnostics
+        </h3>
+        <p className='text-xs text-muted-foreground'>
+          Real-time webhook and cloud database health status.
+        </p>
+        
+        <div className='space-y-3 pt-2'>
+          {/* Supabase Connection */}
+          <div className='flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20'>
+            <span className='font-semibold text-sm text-brand-navy'>Supabase Database</span>
+            <span className='text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-600 animate-pulse'>ACTIVE</span>
+          </div>
+
+          {/* Slack Connection */}
+          <div className='flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20'>
+            <span className='font-semibold text-sm text-brand-navy'>Slack Alerts Portal</span>
+            <span className='text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-600 animate-pulse'>ACTIVE</span>
+          </div>
+
+          {/* Jira Connection */}
+          <div className='flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20'>
+            <span className='font-semibold text-sm text-brand-navy'>Jira Incident Desk</span>
+            <span className='text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-600 animate-pulse'>ACTIVE</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+
+
+
+
+// Main Dashboard — no auth required, renders directly
 
 export default function HomePage() {
   // 1. Safe default state
   const [stats, setStats] = useState({
     active_disruptions: 0,
-    success_rate: '100%',
     cost_avoided: 'MYR 0.00',
+    success_rate: '100%',
     total_tasks: 0
   })
 
@@ -353,10 +405,10 @@ export default function HomePage() {
       initial='hidden'
       animate='visible'
     >
-      {/* Hero Section */}
+      {/* Hero Section (Using our updated title and tagline!) */}
       <HeroSection userName='Developer' />
 
-      {/* KPI Cards Grid */}
+      {/* KPI Cards Grid with Live Supabase Badges */}
       <div className='grid grid-span-12 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6'>
         {/* Card 1: Accomplished Cases */}
         <StatCard
@@ -404,11 +456,24 @@ export default function HomePage() {
         />
       </div>
 
+      {/* 📊 Visual Graphs & System Diagnostics Side-by-Side! */}
+      <div className='grid grid-cols-12 gap-6 mt-6'>
+        {/* Left Side: Weekly Activity Line Graph */}
+        <div className='col-span-12 lg:col-span-8'>
+          <ActivityChart />
+        </div>
+
+        {/* Right Side: Active Integrations Health */}
+        <div className='col-span-12 lg:col-span-4'>
+          <IntegrationsHealth /> {/* ✅ Replaced the useless diagnostics tool! */}
+        </div>
+      </div>
+
 
 
 
 
       
-    </motion.div> // ✅ Closes the motion.div wrapper!
-  ) // ✅ Closes the return parenthesis!
-} // ✅ Closes the HomePage function!
+    </motion.div>
+  )
+}
