@@ -189,7 +189,7 @@ const handlePolicyCreate = async (policyData: {
     }
 
 
-    
+
 
 
     
@@ -584,11 +584,14 @@ const handlePolicyCreate = async (policyData: {
           setIsEditModalOpen(false)
           setEditingPolicy(null)
         }}
+
+
         onSave={async (updatedPolicy) => {
-            await togglePolicyStatus(updatedPolicy.id, !updatedPolicy.is_active, (updatedPolicy as any).value)
+            await loadPolicies()
             setIsEditModalOpen(false)
             setEditingPolicy(null)
         }}
+
       />
     </div>
   )
