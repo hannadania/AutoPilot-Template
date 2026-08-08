@@ -21,7 +21,7 @@ from .routers import (
     items_router,
 )
 from .security import get_current_user, verify_access
-from app.routers.workbench import router as workbench_router, webhooks_router
+from app.routers.workbench import router as workbench_router
 
 
 

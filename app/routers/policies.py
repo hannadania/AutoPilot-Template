@@ -70,6 +70,8 @@ async def list_policies(db: Session = Depends(get_db)):
 
 
 
+
+
 # ==========================================
 # 2. CREATE NEW POLICY (POST)
 # ==========================================
@@ -95,22 +97,40 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
         
         # 2. Extract values from frontend payload and align with DB columns
         name = payload.get("name", "New AI Guardrail")
-        category = payload.get("category", "custom")
         
-        # 🎯 FIX: Safely convert DSL values to a string to store in PostgreSQL 'value' column
-        value = str(payload.get("value", ""))
-        if not value:
+        # 🎯 FIX 2: Safely extract category from nested DSL field if not at root level
+        category = payload.get("category")
+        if not category:
             dsl = payload.get("dsl")
             if dsl and isinstance(dsl, dict) and dsl.get("conditions"):
                 conditions_list = dsl.get("conditions")
                 if isinstance(conditions_list, list) and len(conditions_list) > 0:
-                    # Grab the first dict item from the list using [0]
-                    first_condition = conditions_list[0]
-                    value = str(first_condition.get("value", "5000"))
+                    first_cond = conditions_list[0]  # ✅ Corrected with [0]
+                    category = first_cond.get("field", "custom")
                 else:
-                    value = "5000"
+                    category = "custom"
             else:
-                value = "5000"
+                category = "custom"
+
+        # 🎯 FIX 1: Safely extract nested DSL values, get index [0], and dump to valid JSON strings
+        value = payload.get("value")
+        if value is not None:
+            import json
+            value = json.dumps(value)
+        else:
+            dsl = payload.get("dsl")
+            if dsl and isinstance(dsl, dict) and dsl.get("conditions"):
+                conditions_list = dsl.get("conditions")
+                if isinstance(conditions_list, list) and len(conditions_list) > 0:
+                    first_condition = conditions_list[0]  # ✅ Corrected with [0]
+                    import json  # Surgical local import
+                    value = json.dumps(first_condition.get("value", "5000"))
+                else:
+                    import json
+                    value = json.dumps("5000")
+            else:
+                import json
+                value = json.dumps("5000")
                 
         is_active = payload.get("is_active", True)
         
@@ -138,7 +158,8 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
         ).mappings().first()
         
         merged_record = {**payload, **dict(new_record)}
-             # 🎯 Wrap the formatted policy to perfectly match the frontend's PolicyCreateResponse interface!
+        
+        # 🎯 Wrap the formatted policy to perfectly match the frontend's PolicyCreateResponse interface!
         return {
             "status": "success",
             "policy": format_policy_for_frontend(merged_record)
@@ -150,9 +171,18 @@ async def create_policy(payload: Dict[str, Any], db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+    
+
+
+
+
 # ==========================================
-# 3. UPDATE POLICY (PATCH)
+# 3. UPDATE POLICY (PATCH & PUT)
 # ==========================================
+@router.put("/api/policies/{policy_id}")
+@router.put("/api/policies/{policy_id}/")
+@router.put("/api/ai/policies/{policy_id}")
+@router.put("/api/ai/policies/{policy_id}/")
 @router.patch("/api/policies/{policy_id}")
 @router.patch("/api/policies/{policy_id}/")
 @router.patch("/api/ai/policies/{policy_id}")
@@ -162,7 +192,7 @@ async def update_policy(
     payload: Dict[str, Any], 
     db: Session = Depends(get_db)
 ):
-    print(f"\n📥 [POLICIES API] PATCH request received for Policy ID: {policy_id}")
+    print(f"\n📥 [POLICIES API] UPDATE request received for Policy ID: {policy_id}")
     print(f"📦 [POLICIES API] Payload: {payload}")
     try:
         query_check = text("SELECT * FROM ai_policies WHERE id = :id")
@@ -176,7 +206,24 @@ async def update_policy(
             if key in ["id", "updated_at"] or val is None:
                 continue
             if key in ["name", "category", "value", "is_active"]:
-                update_fields[key] = val
+                if key == "value":
+                    import json  # Surgical local import
+                    update_fields[key] = json.dumps(val)
+                else:
+                    update_fields[key] = val
+
+        # 🎯 FIX: Extract nested DSL conditions, grab the first dict with [0], and dump to JSON string
+        dsl = payload.get("dsl")
+        if dsl and isinstance(dsl, dict):
+            conditions_list = dsl.get("conditions")
+            if isinstance(conditions_list, list) and len(conditions_list) > 0:
+                first_condition = conditions_list[0]  # ✅ Corrected: Extract first item using [0]
+                if isinstance(first_condition, dict):
+                    if "field" in first_condition:
+                        update_fields["category"] = first_condition.get("field")
+                    if "value" in first_condition:
+                        import json  # Surgical local import
+                        update_fields["value"] = json.dumps(first_condition.get("value"))
 
         if not update_fields:
             raise HTTPException(status_code=400, detail="No valid fields provided for update.")
@@ -189,6 +236,7 @@ async def update_policy(
             SET {', '.join(set_clauses)}
             WHERE id = :policy_id
         """)
+
         update_fields["policy_id"] = str(policy_id)
         
         db.execute(query_update, update_fields)
@@ -203,6 +251,9 @@ async def update_policy(
         db.rollback()
         print(f"❌ [POLICIES API ERROR] Failed to update policy: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 # ==========================================
 # 4. AI POLICY EVALUATOR & ANALYZER (POST)
